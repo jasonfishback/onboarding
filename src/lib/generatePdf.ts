@@ -60,9 +60,20 @@ function drawField(page: PDFPage, fonts: Fonts, x: number, y: number, label: str
   return y - 26;
 }
 
+// ─── Helper: sanitize text for PDF (Helvetica is WinAnsi only) ────────────
+function sanitize(text: string): string {
+  return text
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")   // curly single quotes
+    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')   // curly double quotes
+    .replace(/[\u2013\u2014]/g, "-")                            // en/em dashes
+    .replace(/\u2026/g, "...")                                  // ellipsis
+    .replace(/[\u00A0]/g, " ")                                  // non-breaking space
+    .replace(/[^\x00-\xFF]/g, "");                              // strip anything else outside latin-1
+}
+
 // ─── Helper: wrap long text ────────────────────────────────────────────────
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const words = text.split(" ");
+  const words = sanitize(text).split(" ");
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
@@ -82,7 +93,7 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 function drawParagraph(page: PDFPage, fonts: Fonts, x: number, y: number, text: string, size = 8.5, maxWidth = CONTENT_WIDTH, bold = false): number {
   const lines = wrapText(text, bold ? fonts.bold : fonts.regular, size, maxWidth);
   for (const line of lines) {
-    page.drawText(line, { x, y, size, font: bold ? fonts.bold : fonts.regular, color: BLACK });
+    page.drawText(sanitize(line), { x, y, size, font: bold ? fonts.bold : fonts.regular, color: BLACK });
     y -= size + 3;
   }
   return y;
@@ -378,11 +389,11 @@ async function buildAgreementPages(
   const sig = (data.sigData || {}) as Record<string, unknown>;
   const company = (data.companyData || data.fmcsaData || {}) as Record<string, string>;
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const carrierName = company.legalName || company.name || "________________________";
+  const carrierName = sanitize(company.legalName || company.name || '________________________');
   const carrierMC = company.mc || "";
   const carrierDOT = company.dot || "";
   const carrierId = carrierMC ? `MC# ${carrierMC}` : carrierDOT ? `DOT# ${carrierDOT}` : "____________";
-  const carrierAddr = [company.address, company.city, company.state, company.zip].filter(Boolean).join(", ") || "________________________";
+  const carrierAddr = sanitize([company.address, company.city, company.state, company.zip].filter(Boolean).join(', ') || '________________________');
 
   // ── Title ──────────────────────────────────────────────────────────────
   const titleText = "BROKER-CARRIER TRANSPORTATION SERVICES AGREEMENT";

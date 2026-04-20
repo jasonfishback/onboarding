@@ -234,16 +234,24 @@ export async function POST(req: NextRequest) {
 
     // ── 1. Generate main onboarding packet PDF ──
     console.log("[submit] generating onboarding packet PDF...");
-    const packetBytes = await generateOnboardingPDF({
-      companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo,
-    });
-    console.log("[submit] packet PDF:", packetBytes.length, "bytes");
+    console.log("[submit] sigData keys:", Object.keys(sigData || {}));
+    console.log("[submit] signatureImage size:", (sigData?.signatureImage as string)?.length || 0);
+    let packetBytes: Uint8Array;
+    try {
+      packetBytes = await generateOnboardingPDF({
+        companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo,
+      });
+      console.log("[submit] packet PDF:", packetBytes.length, "bytes");
+    } catch (pdfErr) {
+      console.error("[submit] PDF generation failed:", String(pdfErr));
+      throw pdfErr;
+    }
 
     // ── 2. Generate attachments PDF (uploaded docs) ──
     const attachments: Array<{ filename: string; content: string }> = [
       {
         filename: `Simon_Express_Onboarding_Packet_${safeName}.pdf`,
-        content: Buffer.from(packetBytes).toString("base64"),
+        content: Buffer.from(packetBytes!).toString("base64"),
       },
     ];
 
@@ -293,7 +301,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[submit] error:", String(err));
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
+    const e = err as Error;
+    console.error("[submit] FATAL error:", e?.message || String(err));
+    console.error("[submit] stack:", e?.stack || "no stack");
+    return NextResponse.json({ success: false, error: e?.message || String(err) }, { status: 500 });
   }
 }
