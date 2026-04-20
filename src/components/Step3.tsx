@@ -267,6 +267,14 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail }: Ste
         </div>
       )}
 
+      {/* Validation error */}
+      {(!w9Complete || !coiComplete) && (
+        <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
+          Required to continue:{" "}
+          {[!w9Complete && "W-9 (upload or fill out online)", !coiComplete && "Certificate of Insurance (upload or send to agent)"].filter(Boolean).join(", ")}
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn

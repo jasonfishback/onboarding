@@ -264,6 +264,17 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
         </>
       )}
 
+      {/* Validation error */}
+      {!canSign && (
+        <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
+          {!agreed && !scrolled
+            ? "Scroll through the full agreement to continue"
+            : !agreed
+              ? "Check the box to agree to the terms above"
+              : "Enter your name in the signature field above (min. 3 characters)"}
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn

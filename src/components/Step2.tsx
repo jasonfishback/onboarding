@@ -245,6 +245,20 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         </div>
       </div>
 
+      {/* Validation error */}
+      {(() => {
+        const missing = [];
+        if (!form.legalName) missing.push("Legal Company Name");
+        if (!form.mc && !form.dot) missing.push("MC# or DOT#");
+        if (!form.ein) missing.push("EIN / Tax ID");
+        if (missing.length === 0) return null;
+        return (
+          <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
+            Required to continue: {missing.join(", ")}
+          </div>
+        );
+      })()}
+
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn onClick={() => onNext({ ...form, dispatch, billing, mailing: diffMailing ? mailing : null, usesFactoring, factoringName, wantsQuickPay })}

@@ -261,6 +261,17 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
         </Box>
       )}
 
+      {/* Validation error */}
+      {!canContinue && (
+        <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
+          {hasWC
+            ? "Required to continue: upload your Workers Compensation certificate"
+            : !exemptSigned
+              ? "Required to continue: check the exemption declaration box"
+              : "Required to continue: sign the exemption form above"}
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn
