@@ -3,16 +3,96 @@
 @tailwind components;
 @tailwind utilities;
 
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 body {
   font-family: 'DM Sans', sans-serif;
   background: #f5f3ef;
   min-height: 100vh;
 }
 
+/* The sketch border - use margin-right to make room for the shadow */
 .sketch-border {
   border: 2px solid #1a1a1a;
   border-radius: 2px;
   box-shadow: 3px 3px 0 #1a1a1a;
+}
+
+/* All inputs respect box-sizing */
+input, select, textarea {
+  box-sizing: border-box;
+}
+
+/* Page wrapper - constrain width properly */
+.step-wrapper {
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 32px 24px 32px 24px;
+}
+
+/* Card that won't clip its shadow */
+.step-card {
+  background: white;
+  border: 2px solid #1a1a1a;
+  border-radius: 2px;
+  box-shadow: 3px 3px 0 #1a1a1a;
+  padding: 20px;
+  margin-bottom: 16px;
+  /* Don't clip - shadow needs room */
+  overflow: visible;
+}
+
+.section-title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1.5px dashed #ddd;
+  color: #1a1a1a;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.field-grid .full {
+  grid-column: 1 / -1;
+}
+
+.field-label {
+  display: block;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #555;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 2px solid #1a1a1a;
+  border-radius: 2px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  background: #fafaf8;
+  outline: none;
+  margin-bottom: 12px;
+}
+
+.field-input:focus {
+  border-color: #CC1B1B;
+  background: white;
 }
 
 @keyframes fadeIn {

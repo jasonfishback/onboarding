@@ -67,7 +67,7 @@ export default function Step1({ onNext }: Step1Props) {
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box" as const, width: "100%" }}>
+    <div className="step-wrapper">
       <div
         style={{
           fontFamily: "DM Sans",
@@ -125,8 +125,8 @@ export default function Step1({ onNext }: Step1Props) {
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
                 display: "flex",
@@ -135,6 +135,7 @@ export default function Step1({ onNext }: Step1Props) {
                 borderRadius: 2,
                 overflow: "hidden",
                 background: "#fafaf8",
+                height: "100%",
               }}
             >
               <span
@@ -145,6 +146,8 @@ export default function Step1({ onNext }: Step1Props) {
                   fontSize: 16,
                   fontWeight: 700,
                   borderRight: "2px solid " + DARK,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 {mode}#
@@ -158,17 +161,19 @@ export default function Step1({ onNext }: Step1Props) {
                 }
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   padding: "10px 12px",
                   border: "none",
                   fontFamily: "DM Sans",
                   fontSize: 14,
                   background: "transparent",
                   outline: "none",
+                  width: "100%",
                 }}
               />
             </div>
           </div>
-          <Btn onClick={lookup} disabled={value.length < 3 || loading}>
+          <Btn onClick={lookup} disabled={value.length < 3 || loading} style={{ flexShrink: 0 }}>
             {loading ? "..." : "Look Up →"}
           </Btn>
         </div>
