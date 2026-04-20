@@ -30,7 +30,7 @@ export default function Home() {
       await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fmcsaData, companyData, docsData, wcData, sigData: sig }),
+        body: JSON.stringify({ fmcsaData, companyData, docsData, wcData, sigData: sig, sessionId: (docsData as Record<string,unknown>)?.sessionId }),
       });
     } catch {
       setSubmitError("We had trouble sending your confirmation email, but your application was received. Please contact dispatch@simonexpress.com.");
