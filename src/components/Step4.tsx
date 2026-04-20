@@ -56,7 +56,7 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
   const canContinue = hasWC ? !!wcUpload : exemptSigned && !!typeSig;
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px" }}>
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box" as const, width: "100%" }}>
       <div style={{ fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 6 }}>
         Step 4 of 5
       </div>

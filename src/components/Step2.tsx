@@ -161,7 +161,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px" }}>
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box", width: "100%" }}>
       <div
         style={{
           fontFamily: "DM Sans",
@@ -201,7 +201,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       )}
 
       {/* Company Info */}
-      <Box style={{ padding: 24, marginBottom: 16 }}>
+      <Box style={{ padding: 24, marginBottom: 16, overflow: "hidden" }}>
         <div
           style={{
             fontFamily: "DM Sans",
@@ -224,8 +224,10 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           <SketchInput label="MC Number" value={form.mc} onChange={set("mc")} placeholder="MC123456" required />
           <SketchInput label="DOT Number" value={form.dot} onChange={set("dot")} placeholder="9876543" />
           <SketchInput label="EIN / Tax ID" value={form.ein} onChange={set("ein")} placeholder="XX-XXXXXXX" required />
-          <SketchInput label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required />
-          <SketchInput label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+            <SketchInput label="# of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required />
+            <SketchInput label="# of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required />
+          </div>
         </div>
 
         <div style={{ marginBottom: 4 }}>

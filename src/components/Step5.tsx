@@ -61,7 +61,7 @@ export default function Step5({ onNext, onBack, companyName }: Step5Props) {
   const today = new Date().toLocaleDateString();
 
   return (
-    <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 20px" }}>
+    <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box" as const, width: "100%" }}>
       <div style={{ fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 6 }}>
         Step 5 of 5
       </div>

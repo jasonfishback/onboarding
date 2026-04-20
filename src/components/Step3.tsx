@@ -160,7 +160,7 @@ export default function Step3({ onNext, onBack, companyName }: Step3Props) {
   const coiComplete = uploads["ins"] || emailSent;
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px" }}>
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box" as const, width: "100%" }}>
       <div style={{ fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 6 }}>
         Step 3 of 5
       </div>

@@ -67,7 +67,7 @@ export default function Step1({ onNext }: Step1Props) {
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "32px 20px" }}>
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box" as const, width: "100%" }}>
       <div
         style={{
           fontFamily: "DM Sans",
