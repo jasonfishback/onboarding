@@ -68,6 +68,11 @@ function sanitize(text: string): string {
     .replace(/[\u2013\u2014]/g, "-")                            // en/em dashes
     .replace(/\u2026/g, "...")                                  // ellipsis
     .replace(/[\u00A0]/g, " ")                                  // non-breaking space
+    .replace(/\u2713|\u2714/g, "[YES]")                        // checkmarks
+    .replace(/\u2717|\u2718/g, "[NO]")                         // x marks
+    .replace(/\u2192/g, "->")                                   // right arrow
+    .replace(/\u00B7/g, ".")                                    // middle dot (keep as period)
+    .replace(/\t/g, "  ")                                      // tabs to spaces
     .replace(/[^\x00-\xFF]/g, "");                              // strip anything else outside latin-1
 }
 
@@ -274,7 +279,7 @@ async function buildWorkersCompPage(
   if (wc.hasWC) {
     // Has WC insurance
     page.drawRectangle({ x: MARGIN, y: y - 50, width: CONTENT_WIDTH, height: 60, color: rgb(0.93, 0.98, 0.95), borderColor: GREEN, borderWidth: 1 });
-    page.drawText("✓ WORKERS' COMPENSATION INSURANCE ON FILE", { x: MARGIN + 12, y: y - 16, size: 12, font: fonts.bold, color: GREEN });
+    page.drawText("[YES] WORKERS' COMPENSATION INSURANCE ON FILE", { x: MARGIN + 12, y: y - 16, size: 12, font: fonts.bold, color: GREEN });
     page.drawText(`Carrier has confirmed active workers' compensation insurance coverage.`, { x: MARGIN + 12, y: y - 32, size: 9, font: fonts.regular, color: BLACK });
     if (wc.wcUpload) {
       page.drawText(`Certificate uploaded: ${wc.wcUpload}`, { x: MARGIN + 12, y: y - 46, size: 8, font: fonts.regular, color: GRAY });
