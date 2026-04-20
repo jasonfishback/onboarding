@@ -17,6 +17,13 @@ interface Step2Props {
   onBack: () => void;
 }
 
+// Format EIN as XX-XXXXXXX
+function formatEIN(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, "").slice(0, 9);
+  if (digits.length <= 2) return digits;
+  return digits.slice(0, 2) + "-" + digits.slice(2);
+}
+
 // Simple field component using CSS classes
 function Field({ label, value, onChange, placeholder, required, type = "text", inputMode }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -134,7 +141,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           </div>
         )}
         <div className="field-grid">
-          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={set("ein")} placeholder="XX-XXXXXXX" required inputMode="numeric" /></div>
+          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={v => set("ein")(formatEIN(v))} placeholder="XX-XXXXXXX" required inputMode="numeric" /></div>
           <Field label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required inputMode="numeric" />
           <Field label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required inputMode="numeric" />
         </div>

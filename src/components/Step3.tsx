@@ -8,6 +8,7 @@ interface Step3Props {
   onBack: () => void;
   companyName: string;
   carrierEmail?: string;
+  companyData?: Record<string, unknown>;
 }
 
 // Generate a session ID once per browser session
@@ -92,7 +93,24 @@ function UploadBox({
   );
 }
 
-export default function Step3({ onNext, onBack, companyName, carrierEmail }: Step3Props) {
+// Format EIN/SSN with auto-dash
+function formatTIN(raw: string, isEIN: boolean): string {
+  const digits = raw.replace(/[^0-9]/g, "");
+  if (isEIN) {
+    // EIN: XX-XXXXXXX
+    const d = digits.slice(0, 9);
+    if (d.length <= 2) return d;
+    return d.slice(0, 2) + "-" + d.slice(2);
+  } else {
+    // SSN: XXX-XX-XXXX
+    const d = digits.slice(0, 9);
+    if (d.length <= 3) return d;
+    if (d.length <= 5) return d.slice(0, 3) + "-" + d.slice(3);
+    return d.slice(0, 3) + "-" + d.slice(3, 5) + "-" + d.slice(5);
+  }
+}
+
+export default function Step3({ onNext, onBack, companyName, carrierEmail, companyData }: Step3Props) {
   const [sessionId] = useState(() => {
     if (typeof window !== "undefined") return getSessionId();
     return crypto.randomUUID();
@@ -103,13 +121,24 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail }: Ste
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
   const [w9Mode, setW9Mode] = useState<"upload" | "fill">("upload");
+
+  // Pre-populate W-9 from company profile data
+  const prefillEIN = String(companyData?.ein ?? "");
   const [w9Form, setW9Form] = useState({
-    name: "", ssn: "", address: "", city: "", state: "", zip: "", classif: "individual",
+    name:    String(companyData?.legalName ?? ""),
+    ssn:     prefillEIN, // EIN goes in the TIN field
+    address: String(companyData?.address ?? ""),
+    city:    String(companyData?.city ?? ""),
+    state:   String(companyData?.state ?? ""),
+    zip:     String(companyData?.zip ?? ""),
+    classif: "individual",
   });
   const [agentEmail, setAgentEmail] = useState("");
   const [emailSent, setEmailSent] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
 
+  // Detect if TIN is EIN format (has a dash in position 2)
+  const isEIN = w9Form.ssn.length >= 3 && w9Form.ssn[2] === "-";
   const setW9 = (k: string) => (v: string) => setW9Form((f) => ({ ...f, [k]: v }));
 
   // Upload file to server
@@ -197,7 +226,20 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail }: Ste
               <div style={{ gridColumn: "1/-1" }}>
                 <SketchInput label="Legal Name (as shown on tax return)" value={w9Form.name} onChange={setW9("name")} required />
               </div>
-              <SketchInput label="SSN or EIN" value={w9Form.ssn} onChange={setW9("ssn")} placeholder="XX-XXXXXXX" required />
+              <SketchInput
+                label="EIN (XX-XXXXXXX) or SSN (XXX-XX-XXXX)"
+                value={w9Form.ssn}
+                onChange={v => {
+                  const digits = v.replace(/[^0-9]/g, "").slice(0, 9);
+                  // Smart detect: if current value already has dash at pos 2 → EIN, pos 3 → SSN
+                  // Default to EIN (XX-XXXXXXX) for businesses
+                  const curDashPos = w9Form.ssn.indexOf("-");
+                  const useEIN = curDashPos !== 3; // SSN has dash at pos 3
+                  setW9Form(f => ({ ...f, ssn: formatTIN(digits, useEIN) }));
+                }}
+                placeholder="XX-XXXXXXX"
+                required
+              />
               <SketchSelect label="Federal Tax Classification" value={w9Form.classif} onChange={setW9("classif")} options={[
                 { value: "individual", label: "Individual / Sole Proprietor" },
                 { value: "llc_s", label: "LLC (S-Corp)" },
