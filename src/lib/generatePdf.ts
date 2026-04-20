@@ -36,7 +36,7 @@ function addPage(doc: PDFDocument, fonts: Fonts, pageNum: number, totalPages?: n
   page.drawLine({ start: { x: MARGIN, y: 36 }, end: { x: PAGE_WIDTH - MARGIN, y: 36 }, thickness: 0.5, color: LIGHT_GRAY });
 
   // Line 1: Simon Express
-  page.drawText("BROKER: Simon Express Logistics LLC  ·  PO Box 1582, Riverton, UT 84065  ·  801-260-7010  ·  MC# 077997-B  ·  DOT# 3001453", {
+  page.drawText("BROKER: Simon Express Logistics LLC  ·  PO Box 1582, Riverton, UT 84065  ·  801-260-7010", {
     x: MARGIN, y: 24, size: 6.5, font: fonts.regular, color: GRAY,
   });
 
