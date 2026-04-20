@@ -125,56 +125,55 @@ export default function Step1({ onNext }: Step1Props) {
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              border: "2px solid " + DARK,
+              borderRadius: 2,
+              overflow: "hidden",
+              background: "#fafaf8",
+            }}
+          >
+            <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                border: "2px solid " + DARK,
-                borderRadius: 2,
-                overflow: "hidden",
-                background: "#fafaf8",
-                height: "100%",
+                padding: "12px 14px",
+                background: "#f0eeea",
+                fontFamily: "DM Sans",
+                fontSize: 16,
+                fontWeight: 700,
+                borderRight: "2px solid " + DARK,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
-              <span
-                style={{
-                  padding: "10px 12px",
-                  background: "#f0eeea",
-                  fontFamily: "DM Sans",
-                  fontSize: 16,
-                  fontWeight: 700,
-                  borderRight: "2px solid " + DARK,
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                }}
-              >
-                {mode}#
-              </span>
-              <input
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={mode === "MC" ? "123456" : "9876543"}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && value.length > 3 && lookup()
-                }
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  padding: "10px 12px",
-                  border: "none",
-                  fontFamily: "DM Sans",
-                  fontSize: 14,
-                  background: "transparent",
-                  outline: "none",
-                  width: "100%",
-                }}
-              />
-            </div>
+              {mode}#
+            </span>
+            <input
+              value={value}
+              onChange={(e) => setValue(e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder={mode === "MC" ? "123456" : "9876543"}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              onKeyDown={(e) =>
+                e.key === "Enter" && value.length > 3 && lookup()
+              }
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: "12px 14px",
+                border: "none",
+                fontFamily: "DM Sans",
+                fontSize: 16,
+                background: "transparent",
+                outline: "none",
+                width: "100%",
+              }}
+            />
           </div>
-          <Btn onClick={lookup} disabled={value.length < 3 || loading} style={{ flexShrink: 0 }}>
-            {loading ? "..." : "Look Up →"}
+          <Btn onClick={lookup} disabled={value.length < 3 || loading} style={{ width: "100%", textAlign: "center" }}>
+            {loading ? "Checking FMCSA database..." : "Look Up →"}
           </Btn>
         </div>
 

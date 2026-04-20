@@ -18,9 +18,9 @@ interface Step2Props {
 }
 
 // Simple field component using CSS classes
-function Field({ label, value, onChange, placeholder, required, type = "text" }: {
+function Field({ label, value, onChange, placeholder, required, type = "text", inputMode }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; required?: boolean; type?: string;
+  placeholder?: string; required?: boolean; type?: string; inputMode?: "numeric" | "tel" | "email" | "text";
 }) {
   return (
     <div>
@@ -29,6 +29,7 @@ function Field({ label, value, onChange, placeholder, required, type = "text" }:
       </label>
       <input
         type={type}
+        inputMode={inputMode}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
@@ -74,7 +75,7 @@ function ContactSection({ title, data, setData, primaryContact, showCopy }: {
       <div className="field-grid">
         <Field label="Contact Name" value={data.name} onChange={v => setData(d => ({ ...d, name: v }))} required />
         <Field label="Title / Role" value={data.title} onChange={v => setData(d => ({ ...d, title: v }))} placeholder="Owner, Dispatch…" />
-        <Field label="Phone" value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))} required />
+        <Field label="Phone" value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))} required inputMode="tel" />
         <Field label="Email" value={data.email} onChange={v => setData(d => ({ ...d, email: v }))} required />
       </div>
     </div>
@@ -124,11 +125,11 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         <div className="field-grid">
           <div className="full"><Field label="Legal Company Name" value={form.legalName} onChange={set("legalName")} required /></div>
           <div className="full"><Field label="DBA / Trade Name" value={form.dba} onChange={set("dba")} placeholder="If different from legal name" /></div>
-          <Field label="MC Number" value={form.mc} onChange={set("mc")} placeholder="MC123456" required />
-          <Field label="DOT Number" value={form.dot} onChange={set("dot")} placeholder="9876543" />
-          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={set("ein")} placeholder="XX-XXXXXXX" required /></div>
-          <Field label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required />
-          <Field label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required />
+          <Field label="MC Number" value={form.mc} onChange={set("mc")} placeholder="MC123456" required inputMode="numeric" />
+          <Field label="DOT Number" value={form.dot} onChange={set("dot")} placeholder="9876543" inputMode="numeric" />
+          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={set("ein")} placeholder="XX-XXXXXXX" required inputMode="numeric" /></div>
+          <Field label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required inputMode="numeric" />
+          <Field label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required inputMode="numeric" />
         </div>
 
         {/* Trailer Types */}
@@ -191,7 +192,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         <div className="field-grid">
           <Field label="Contact Name" value={form.contactName} onChange={set("contactName")} required />
           <Field label="Title / Role" value={form.contactTitle} onChange={set("contactTitle")} placeholder="Owner, Dispatch…" />
-          <Field label="Phone" value={form.phone} onChange={set("phone")} required />
+          <Field label="Phone" value={form.phone} onChange={set("phone")} required inputMode="tel" />
           <Field label="Email" value={form.email} onChange={set("email")} required />
         </div>
       </div>
