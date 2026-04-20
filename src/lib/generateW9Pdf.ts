@@ -140,10 +140,30 @@ export async function generateW9PDF(
 
   // ── Part II: Signature ─────────────────────────────────────────────────────
   // Sign Here block: "Signature of U.S. person" label at y=582.1
-  // Signature line appears to be around y≈595-600
+  // Signature line is at y≈595-600, x starts at 78
   // Date label at y=590.5, x=385.6
-  if (signer) {
-    // Signature in cursive-style bold below the "Signature of U.S. person" label
+  const signatureImage = String(sigData.signatureImage ?? "");
+  if (signatureImage && signatureImage.startsWith("data:image/png;base64,")) {
+    try {
+      const base64Data = signatureImage.replace(/^data:image\/png;base64,/, "");
+      const pngBytes = Buffer.from(base64Data, "base64");
+      const embeddedSig = await doc.embedPng(pngBytes);
+      const maxW = 280;
+      const maxH = 36;
+      const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
+      // Place signature image — signature line is at pdfplumber y≈600, pdf-lib y = H - 600
+      page.drawImage(embeddedSig, {
+        x: 78,
+        y: py(600) - sigDims.height + sigDims.height,
+        width: sigDims.width,
+        height: sigDims.height,
+      });
+    } catch {
+      // Fall back to typed name if image embed fails
+      if (signer) drawText(page, signer, 78, 594, 13, bold, BLUE);
+    }
+  } else if (signer) {
+    // Typed signature in blue bold
     drawText(page, signer, 78, 594, 13, bold, BLUE);
   }
   // Date
