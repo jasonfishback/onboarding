@@ -241,7 +241,7 @@ function buildCarrierProfilePage(
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE 2: WORKERS COMPENSATION
 // ═══════════════════════════════════════════════════════════════════════════
-function buildWorkersCompPage(
+async function buildWorkersCompPage(
   doc: PDFDocument,
   fonts: Fonts,
   data: Record<string, unknown>,
@@ -315,17 +315,30 @@ function buildWorkersCompPage(
     page.drawLine({ start: { x: MARGIN, y: y + 5 }, end: { x: PAGE_WIDTH - MARGIN, y: y + 5 }, thickness: 0.5, color: LIGHT_GRAY });
     y -= 4;
 
-    // Signature
     page.drawText("CARRIER SIGNATURE", { x: MARGIN, y, size: 7, font: fonts.bold, color: GRAY });
     page.drawText("DATE", { x: MARGIN + 320, y, size: 7, font: fonts.bold, color: GRAY });
-    y -= 18;
+    y -= 20;
 
-    if (wc.signerName) {
-      // Draw signature in italicized large text
-      page.drawText(String(wc.signerName), { x: MARGIN, y, size: 18, font: fonts.bold, color: BLACK });
+    // Embed drawn signature image if available, otherwise use typed name in large text
+    const wcSigImage = wc.signatureImage as string | undefined;
+    if (wcSigImage) {
+      try {
+        const base64Data = wcSigImage.replace(/^data:image\/png;base64,/, "");
+        const pngBytes = Buffer.from(base64Data, "base64");
+        const embeddedSig = await doc.embedPng(pngBytes);
+        const sigDims = embeddedSig.scale(Math.min(260 / embeddedSig.width, 60 / embeddedSig.height));
+        page.drawImage(embeddedSig, { x: MARGIN, y: y - sigDims.height + 14, width: sigDims.width, height: sigDims.height });
+        y -= Math.max(sigDims.height, 20);
+      } catch {
+        if (wc.signerName) page.drawText(String(wc.signerName), { x: MARGIN, y, size: 20, font: fonts.bold, color: BLACK });
+        y -= 24;
+      }
+    } else if (wc.signerName) {
+      page.drawText(String(wc.signerName), { x: MARGIN, y, size: 20, font: fonts.bold, color: BLACK });
+      y -= 24;
     }
-    page.drawText(today, { x: MARGIN + 320, y, size: 11, font: fonts.regular, color: BLACK });
-    y -= 8;
+
+    page.drawText(today, { x: MARGIN + 320, y: y + 10, size: 11, font: fonts.regular, color: BLACK });
     page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + 280, y }, thickness: 0.75, color: BLACK });
     page.drawLine({ start: { x: MARGIN + 320, y }, end: { x: MARGIN + 450, y }, thickness: 0.75, color: BLACK });
     y -= 14;
@@ -350,7 +363,7 @@ function buildWorkersCompPage(
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGES 3+: CARRIER AGREEMENT
 // ═══════════════════════════════════════════════════════════════════════════
-function buildAgreementPages(
+async function buildAgreementPages(
   doc: PDFDocument,
   fonts: Fonts,
   data: Record<string, unknown>,
@@ -419,15 +432,56 @@ function buildAgreementPages(
   const leftX = MARGIN;
   const rightX = PAGE_WIDTH / 2 + 20;
 
-  // BROKER side
+  // BROKER side (left)
   page.drawText("BROKER — Simon Express Logistics LLC", { x: leftX, y, size: 9, font: fonts.bold, color: BLACK });
+  page.drawText("CARRIER — " + (company.legalName || company.name || ""), { x: rightX, y, size: 9, font: fonts.bold, color: BLACK });
   y -= 16;
+
+  // Carrier address under their name
+  const carrierAddr = [
+    company.address,
+    [company.city, company.state, company.zip].filter(Boolean).join(", "),
+    company.phone,
+  ].filter(Boolean);
+  for (const line of carrierAddr) {
+    page.drawText(String(line), { x: rightX, y, size: 7.5, font: fonts.regular, color: GRAY });
+    y -= 11;
+  }
+  if (company.mc || company.dot) {
+    const mcDot = [company.mc ? `MC# ${company.mc}` : "", company.dot ? `DOT# ${company.dot}` : ""].filter(Boolean).join("   |   ");
+    page.drawText(mcDot, { x: rightX, y, size: 7.5, font: fonts.regular, color: GRAY });
+    y -= 14;
+  }
+
+  // "By:" labels
   page.drawText("By: Jason Fishback", { x: leftX, y, size: 9, font: fonts.regular, color: BLACK });
   page.drawText("By:", { x: rightX, y, size: 9, font: fonts.regular, color: GRAY });
-  if (sig.signerName) {
-    page.drawText(String(sig.signerName), { x: rightX + 20, y, size: 18, font: fonts.bold, color: BLACK });
+  y -= 4;
+
+  // Carrier signature — embed drawn image or large typed name
+  const agreementSigImage = sig.signatureImage as string | undefined;
+  if (agreementSigImage) {
+    try {
+      const base64Data = agreementSigImage.replace(/^data:image\/png;base64,/, "");
+      const pngBytes = Buffer.from(base64Data, "base64");
+      const embeddedSig = await doc.embedPng(pngBytes);
+      const maxW = 200;
+      const maxH = 55;
+      const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
+      page.drawImage(embeddedSig, { x: rightX + 20, y: y - sigDims.height + 16, width: sigDims.width, height: sigDims.height });
+      y -= Math.max(sigDims.height + 4, 20);
+    } catch {
+      // fallback to typed name
+      if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 20, y, size: 20, font: fonts.bold, color: BLACK });
+      y -= 26;
+    }
+  } else if (sig.signerName) {
+    page.drawText(String(sig.signerName), { x: rightX + 20, y, size: 20, font: fonts.bold, color: BLACK });
+    y -= 26;
+  } else {
+    y -= 26;
   }
-  y -= 22;
+
   page.drawLine({ start: { x: leftX, y }, end: { x: leftX + 220, y }, thickness: 0.75, color: BLACK });
   page.drawLine({ start: { x: rightX, y }, end: { x: rightX + 220, y }, thickness: 0.75, color: BLACK });
   y -= 14;
@@ -441,9 +495,6 @@ function buildAgreementPages(
     page.drawText(`Title: ${String(sig.signerTitle)}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
     y -= 14;
   }
-
-  // CARRIER info
-  page.drawText(`CARRIER — ${company.legalName || company.name || ""}`, { x: rightX, y: y + 14 - 80, size: 8.5, font: fonts.bold, color: BLACK });
 
   y -= 10;
   // IP + legal notice
@@ -472,10 +523,10 @@ export async function generateOnboardingPDF(data: Record<string, unknown>): Prom
   buildCarrierProfilePage(doc, fonts, data, pageCounter);
 
   // Page 2: Workers Comp
-  buildWorkersCompPage(doc, fonts, data, pageCounter);
+  await buildWorkersCompPage(doc, fonts, data, pageCounter);
 
   // Pages 3+: Agreement
-  buildAgreementPages(doc, fonts, data, pageCounter);
+  await buildAgreementPages(doc, fonts, data, pageCounter);
 
   // Update page numbers now that we know total
   const total = doc.getPageCount();

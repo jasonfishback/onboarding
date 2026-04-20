@@ -265,7 +265,18 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn
           disabled={!canContinue}
-          onClick={() => onNext({ hasWC, wcUpload: wcUpload?.name, exemptSigned, signerName: typeSig })}
+          onClick={() => {
+            let signatureImage: string | undefined;
+            if (sigMode === "draw" && canvasRef.current) {
+              const ctx = canvasRef.current.getContext("2d");
+              if (ctx) {
+                const data = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
+                const hasContent = data.data.some((v, i) => i % 4 !== 3 && v !== 0);
+                if (hasContent) signatureImage = canvasRef.current.toDataURL("image/png");
+              }
+            }
+            onNext({ hasWC, wcUpload: wcUpload?.name, exemptSigned, signerName: typeSig, signatureImage });
+          }}
         >
           Continue →
         </Btn>

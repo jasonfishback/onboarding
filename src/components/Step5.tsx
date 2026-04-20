@@ -256,7 +256,20 @@ export default function Step5({ onNext, onBack, companyName }: Step5Props) {
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn
           disabled={!canSign}
-          onClick={() => onNext({ agreed, signerName: typeSig, signerTitle, sigDate: today })}
+          onClick={() => {
+            // Capture drawn signature as base64 if in draw mode
+            let signatureImage: string | undefined;
+            if (sigMode === "draw" && canvasRef.current) {
+              const ctx = canvasRef.current.getContext("2d");
+              if (ctx) {
+                // Check if canvas has content (not blank)
+                const data = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
+                const hasContent = data.data.some((v, i) => i % 4 !== 3 && v !== 0);
+                if (hasContent) signatureImage = canvasRef.current.toDataURL("image/png");
+              }
+            }
+            onNext({ agreed, signerName: typeSig, signerTitle, sigDate: today, signatureImage });
+          }}
         >
           Submit Application →
         </Btn>
