@@ -65,7 +65,7 @@ export default function Home() {
       {step === 2 && <Step3 onNext={(data) => { setDocsData(data); goTo(3); }} onBack={() => goTo(1)} companyName={companyName} />}
       {step === 3 && <Step4 onNext={(data) => { setWcData(data); goTo(4); }} onBack={() => goTo(2)} carrier={(companyData ?? fmcsaData) as Record<string, string> | null} />}
       {step === 4 && <Step5 onNext={handleSubmit} onBack={() => goTo(3)} companyName={companyName} companyData={companyData} />}
-      {step === 5 && <Step6 companyName={companyName} companyData={companyData} docsData={docsData} wcData={wcData} sigData={sigData} submitting={submitting} error={submitError} />}
+      {step === 5 && <Step6 companyName={companyName} companyData={companyData} fmcsaData={fmcsaData} docsData={docsData} wcData={wcData} sigData={sigData} submitting={submitting} error={submitError} />}
     </div>
   );
 }

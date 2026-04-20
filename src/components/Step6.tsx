@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Btn, RED, DARK } from "@/components/ui";
+import { Box, Btn, RED } from "@/components/ui";
 
 interface Step6Props {
   companyName: string;
@@ -9,17 +9,39 @@ interface Step6Props {
   docsData: Record<string, unknown> | null;
   wcData: Record<string, unknown> | null;
   sigData: Record<string, unknown> | null;
+  fmcsaData?: Record<string, unknown> | null;
   submitting?: boolean;
-  submitted?: boolean;
   error?: string;
 }
 
-export default function Step6({
-  companyName,
-  submitting,
-  submitted,
-  error,
-}: Step6Props) {
+export default function Step6({ companyName, companyData, fmcsaData, wcData, sigData, submitting, error }: Step6Props) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      const res = await fetch("/api/agreement-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyData, fmcsaData, wcData, sigData }),
+      });
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Simon_Express_Carrier_Agreement.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDownloadError("Could not generate PDF. Please contact dispatch@simonexpress.com.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 560, margin: "0 auto", padding: "60px 20px", textAlign: "center" }}>
       {submitting ? (
@@ -38,9 +60,7 @@ export default function Step6({
           <h2 style={{ fontFamily: "DM Sans", fontSize: 34, fontWeight: 700, marginBottom: 10 }}>
             Submission issue
           </h2>
-          <p style={{ fontSize: 15, color: "#666", marginBottom: 20 }}>
-            {error}
-          </p>
+          <p style={{ fontSize: 15, color: "#666", marginBottom: 20 }}>{error}</p>
           <p style={{ fontSize: 14, color: "#888" }}>
             Please email <a href="mailto:dispatch@simonexpress.com" style={{ color: RED }}>dispatch@simonexpress.com</a> or call{" "}
             <a href="tel:8012607010" style={{ color: RED }}>801-260-7010</a>.
@@ -58,13 +78,33 @@ export default function Step6({
             A confirmation has been sent to your email address.
           </p>
 
+          {/* Download agreement box */}
+          <Box style={{ padding: 24, marginBottom: 24, textAlign: "left", borderColor: "#22a355", boxShadow: "3px 3px 0 #22a355" }}>
+            <div style={{ fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
+              📄 Download Your Agreement Copy
+            </div>
+            <p style={{ fontSize: 13, color: "#555", marginBottom: 16, lineHeight: 1.6 }}>
+              Save a copy of the signed Broker-Carrier Transportation Services Agreement for your records.
+            </p>
+            <Btn
+              onClick={handleDownload}
+              disabled={downloading}
+              style={{ width: "100%", textAlign: "center", background: "#22a355", borderColor: "#22a355", fontSize: 15 }}
+            >
+              {downloading ? "Generating PDF..." : "⬇ Download Carrier Agreement (PDF)"}
+            </Btn>
+            {downloadError && (
+              <p style={{ fontSize: 12, color: RED, marginTop: 8 }}>{downloadError}</p>
+            )}
+          </Box>
+
           <Box style={{ padding: 24, marginBottom: 28, textAlign: "left" }}>
             <div style={{ fontFamily: "DM Sans", fontSize: 20, fontWeight: 700, marginBottom: 14 }}>
               What happens next?
             </div>
             {[
               ["📋", "Application Review", "Our team will review your documents as soon as possible."],
-              ["📧", "Email Confirmation", "You'll receive a confirmation email with your packet copy."],
+              ["📧", "Email Confirmation", "You received a confirmation email — check your inbox."],
               ["📞", "Questions?", "Call us at 801-260-7010 or email dispatch@simonexpress.com"],
             ].map(([icon, title, desc]) => (
               <div key={title} style={{ display: "flex", gap: 12, marginBottom: 14 }}>
