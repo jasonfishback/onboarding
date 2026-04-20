@@ -14,8 +14,9 @@ function buildDispatchEmail(data: {
   wcData: Record<string, unknown> | null;
   sigData: Record<string, unknown> | null;
   ipAddress: string;
+  geoInfo: Record<string, string>;
 }): string {
-  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress } = data;
+  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo } = data;
   const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
   const mc = (companyData?.mc as string) || (fmcsaData?.mc as string) || "—";
   const dot = (companyData?.dot as string) || (fmcsaData?.dot as string) || "—";
@@ -132,6 +133,11 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
 <div class="f"><div class="lbl">Title</div><div class="val">${sig.signerTitle as string || "—"}</div></div>
 <div class="f"><div class="lbl">Date Signed</div><div class="val">${today}</div></div>
 <div class="f"><div class="lbl">IP Address</div><div class="val" style="font-family:monospace;font-size:12px">${ipAddress}</div></div>
+${geoInfo.city ? `<div class="f"><div class="lbl">Location</div><div class="val">${[geoInfo.city, geoInfo.region, geoInfo.country].filter(Boolean).join(", ")}</div></div>` : ""}
+${geoInfo.isp ? `<div class="f"><div class="lbl">ISP / Provider</div><div class="val">${geoInfo.isp}</div></div>` : ""}
+${geoInfo.org && geoInfo.org !== geoInfo.isp ? `<div class="f"><div class="lbl">Organization</div><div class="val">${geoInfo.org}</div></div>` : ""}
+${geoInfo.mobile ? `<div class="f"><div class="lbl">Mobile Device</div><div class="val">${geoInfo.mobile}</div></div>` : ""}
+${geoInfo.proxy && geoInfo.proxy !== "No" ? `<div class="f" style="grid-column:1/-1"><div class="lbl">⚠ Proxy / VPN</div><div class="val" style="color:#CC1B1B;font-weight:700">${geoInfo.proxy} — Signed via proxy or VPN</div></div>` : ""}
 </div></div></div>
 
 </div>
@@ -190,6 +196,36 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ||
       "Unknown";
 
+    // Geo-lookup the IP (free, no API key needed)
+    let geoInfo: Record<string, string> = {};
+    if (ipAddress && ipAddress !== "Unknown" && !ipAddress.startsWith("127.") && !ipAddress.startsWith("::1")) {
+      try {
+        const geoRes = await fetch(
+          `http://ip-api.com/json/${ipAddress}?fields=status,city,regionName,country,zip,isp,org,as,mobile,proxy,hosting,query`,
+          { signal: AbortSignal.timeout(3000) }
+        );
+        if (geoRes.ok) {
+          const geo = await geoRes.json();
+          if (geo.status === "success") {
+            geoInfo = {
+              city: geo.city || "",
+              region: geo.regionName || "",
+              country: geo.country || "",
+              zip: geo.zip || "",
+              isp: geo.isp || "",
+              org: geo.org || "",
+              as: geo.as || "",
+              mobile: geo.mobile ? "Yes" : "No",
+              proxy: geo.proxy ? "⚠ Yes" : "No",
+              hosting: geo.hosting ? "Yes (VPN/Hosting)" : "No",
+            };
+          }
+        }
+      } catch (err) {
+        console.log("[submit] geo lookup failed (non-critical):", String(err));
+      }
+    }
+
     const companyName = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
     const carrierEmail = (companyData?.email as string) || "";
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -199,7 +235,7 @@ export async function POST(req: NextRequest) {
     // ── 1. Generate main onboarding packet PDF ──
     console.log("[submit] generating onboarding packet PDF...");
     const packetBytes = await generateOnboardingPDF({
-      companyData, fmcsaData, docsData, wcData, sigData, ipAddress,
+      companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo,
     });
     console.log("[submit] packet PDF:", packetBytes.length, "bytes");
 
@@ -234,7 +270,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Send to dispatch ──
-    const htmlBody = buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress });
+    const htmlBody = buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo });
     await resend.emails.send({
       from: FROM,
       to: ["dispatch@simonexpress.com"],

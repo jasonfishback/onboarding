@@ -349,7 +349,10 @@ async function buildWorkersCompPage(
 
     // IP address if captured
     if (data.ipAddress) {
-      page.drawText(`Electronic signature executed from IP address: ${data.ipAddress}  ·  ${today}`, {
+      const geo = (data.geoInfo || {}) as Record<string, string>;
+      const geoStr = geo.city ? `  ·  ${[geo.city, geo.region].filter(Boolean).join(", ")}` : "";
+      const ispStr = geo.isp ? `  ·  ISP: ${geo.isp}` : "";
+      page.drawText(`Electronic signature executed from IP: ${data.ipAddress}${geoStr}${ispStr}  ·  ${today}`, {
         x: MARGIN, y, size: 7.5, font: fonts.regular, color: GRAY,
       });
       y -= 14;
@@ -546,7 +549,10 @@ async function buildAgreementPages(
 
   // Legal notice
   if (data.ipAddress) {
-    page.drawText(`IP Address: ${String(data.ipAddress)}  ·  Signed electronically: ${today}`, {
+    const geo = (data.geoInfo || {}) as Record<string, string>;
+    const geoStr = geo.city ? `  ·  ${[geo.city, geo.region, geo.country].filter(Boolean).join(", ")}` : "";
+    const ispStr = geo.isp ? `  ·  ISP: ${geo.isp}` : "";
+    page.drawText(`IP Address: ${String(data.ipAddress)}${geoStr}${ispStr}  ·  Signed electronically: ${today}`, {
       x: MARGIN, y, size: 7, font: fonts.regular, color: GRAY,
     });
     y -= 11;
