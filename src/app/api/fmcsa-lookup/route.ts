@@ -1,140 +1,130 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// ─── Carrier411 SOAP ───────────────────────────────────────────────────────
 async function carrier411Login(): Promise<string | null> {
   const username = process.env.CARRIER411_USERNAME;
   const password = process.env.CARRIER411_PASSWORD;
-  
-  console.log("[carrier411] username set:", !!username, "password set:", !!password);
-  if (!username || !password) return null;
+  if (!username || !password) {
+    console.log("[c411] credentials missing");
+    return null;
+  }
 
   const soapBody = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <soap:Body>
-    <wsLogin xmlns="http://www.carrier411.com/">
-      <Username>${username}</Username>
-      <Password>${password}</Password>
-    </wsLogin>
-  </soap:Body>
-</soap:Envelope>`;
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:web="http://www.carrier411.com/">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <web:wsLogin>
+      <web:Username>${username}</web:Username>
+      <web:Password>${password}</web:Password>
+    </web:wsLogin>
+  </soapenv:Body>
+</soapenv:Envelope>`;
 
   try {
-    console.log("[carrier411] attempting login...");
     const res = await fetch("https://www.carrier411.com/webservices/wsLogin.cfc", {
       method: "POST",
-      headers: {
-        "Content-Type": "text/xml; charset=utf-8",
-        "SOAPAction": "wsLogin",
-      },
+      headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "" },
       body: soapBody,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(12000),
     });
     const text = await res.text();
-    console.log("[carrier411] login response status:", res.status);
-    console.log("[carrier411] login response (first 500):", text.slice(0, 500));
-    
-    // Try various patterns to extract session UUID
-    const patterns = [
-      /<SessionUUID[^>]*>([^<]+)<\/SessionUUID>/i,
-      /<wsLoginReturn[^>]*>([^<]+)<\/wsLoginReturn>/i,
+    console.log("[c411] login status:", res.status, "| body snippet:", text.slice(0, 300));
+
+    // Extract UUID - try multiple patterns
+    for (const pattern of [
+      /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/,
       /<return[^>]*>([^<]+)<\/return>/i,
-      />([0-9a-f-]{36})</i,
-    ];
-    for (const p of patterns) {
-      const m = text.match(p);
+      /<wsLoginReturn[^>]*>([^<]+)<\/wsLoginReturn>/i,
+    ]) {
+      const m = text.match(pattern);
       if (m?.[1] && m[1].length > 10) {
-        console.log("[carrier411] session UUID found:", m[1].slice(0, 8) + "...");
+        console.log("[c411] session obtained");
         return m[1];
       }
     }
-    console.log("[carrier411] no session UUID found in response");
+    console.log("[c411] no session UUID in response");
     return null;
   } catch (err) {
-    console.error("[carrier411] login error:", err);
+    console.error("[c411] login error:", String(err));
     return null;
   }
 }
 
-async function carrier411GetCompany(sessionUUID: string, docketNumber: string): Promise<Record<string, string> | null> {
+async function carrier411GetCompany(session: string, docket: string): Promise<Record<string, string> | null> {
   const soapBody = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <soap:Body>
-    <wsGetCompany xmlns="http://www.carrier411.com/">
-      <SessionUUID>${sessionUUID}</SessionUUID>
-      <DocketNumber>${docketNumber}</DocketNumber>
-    </wsGetCompany>
-  </soap:Body>
-</soap:Envelope>`;
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:web="http://www.carrier411.com/">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <web:wsGetCompany>
+      <web:SessionUUID>${session}</web:SessionUUID>
+      <web:DocketNumber>${docket}</web:DocketNumber>
+    </web:wsGetCompany>
+  </soapenv:Body>
+</soapenv:Envelope>`;
 
   try {
-    console.log("[carrier411] calling wsGetCompany for docket:", docketNumber);
     const res = await fetch("https://www.carrier411.com/webservices/wsGetCompany.cfc", {
       method: "POST",
-      headers: {
-        "Content-Type": "text/xml; charset=utf-8",
-        "SOAPAction": "wsGetCompany",
-      },
+      headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "" },
       body: soapBody,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(12000),
     });
     const text = await res.text();
-    console.log("[carrier411] getCompany response status:", res.status);
-    console.log("[carrier411] getCompany response (first 800):", text.slice(0, 800));
+    console.log("[c411] getCompany status:", res.status, "| snippet:", text.slice(0, 500));
 
-    const extract = (tag: string) => {
-      const m = text.match(new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`, "i"));
-      return m?.[1]?.trim() || "";
-    };
+    const get = (tag: string) =>
+      text.match(new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`, "i"))?.[1]?.trim() ?? "";
 
-    const companyName = extract("LegalName") || extract("CompanyName") || extract("Name") || extract("DBAName");
-    if (!companyName) {
-      console.log("[carrier411] no company name found");
-      return null;
-    }
+    // Try all known field name variants
+    const name = get("LegalName") || get("legalName") || get("CompanyName") || get("companyName") || get("Name");
+    if (!name) { console.log("[c411] no company name found"); return null; }
 
     return {
-      name: companyName,
-      dba: extract("DBAName"),
-      address: extract("PhysicalAddress") || extract("MailingAddress") || extract("Address"),
-      city: extract("PhysicalCity") || extract("MailingCity") || extract("City"),
-      state: extract("PhysicalState") || extract("MailingState") || extract("State"),
-      zip: extract("PhysicalZip") || extract("MailingZip") || extract("Zip"),
-      phone: extract("Telephone") || extract("Phone"),
-      email: extract("Email") || extract("EmailAddress"),
-      dot: extract("DOTNumber") || extract("USDOTNumber"),
-      mc: extract("MCNumber") || extract("DocketNumber") || docketNumber,
-      type: extract("CarrierOperation") || extract("EntityType") || "Motor Carrier",
-      status: extract("AuthorityStatus") || extract("OperatingStatus") || "Active",
-      safetyRating: extract("SafetyRating"),
-      insuranceOnFile: extract("InsuranceOnFile") || extract("BIPDOnFile"),
-      cargoInsOnFile: extract("CargoOnFile"),
-      totalDrivers: extract("TotalDrivers"),
-      totalPowerUnits: extract("TotalPowerUnits"),
+      name,
+      dba: get("DBAName") || get("dbaName"),
+      address: get("PhysicalAddress") || get("physicalAddress") || get("Address"),
+      city: get("PhysicalCity") || get("physicalCity") || get("City"),
+      state: get("PhysicalState") || get("physicalState") || get("State"),
+      zip: get("PhysicalZip") || get("physicalZip") || get("Zip"),
+      phone: get("Telephone") || get("telephone") || get("Phone"),
+      email: get("Email") || get("EmailAddress"),
+      dot: get("DOTNumber") || get("dotNumber") || get("USDOTNumber"),
+      mc: get("MCNumber") || get("mcNumber") || docket,
+      type: get("CarrierOperation") || get("EntityType") || "Motor Carrier",
+      status: get("AuthorityStatus") || get("OperatingStatus") || "Active",
+      safetyRating: get("SafetyRating") || get("safetyRating"),
+      insuranceOnFile: get("InsuranceOnFile") || get("BIPDOnFile"),
+      totalDrivers: get("TotalDrivers") || get("totalDrivers"),
+      totalPowerUnits: get("TotalPowerUnits") || get("totalPowerUnits"),
       source: "carrier411",
     };
   } catch (err) {
-    console.error("[carrier411] getCompany error:", err);
+    console.error("[c411] getCompany error:", String(err));
     return null;
   }
 }
 
-async function fmcsaLookup(mode: string, cleanValue: string): Promise<Record<string, string> | null> {
-  const fmcsaKey = process.env.FMCSA_API_KEY;
-  console.log("[fmcsa] key set:", !!fmcsaKey);
-  if (!fmcsaKey) return null;
+// ─── FMCSA REST API ────────────────────────────────────────────────────────
+async function fmcsaLookup(mode: string, value: string): Promise<Record<string, string> | null> {
+  const key = process.env.FMCSA_API_KEY;
+  if (!key) { console.log("[fmcsa] no API key"); return null; }
+
+  // FMCSA endpoint: MC lookup uses docket-number, DOT lookup uses dot number directly
+  const url = mode === "MC"
+    ? `https://mobile.fmcsa.dot.gov/qc/services/carriers/docket-number/${value}?webKey=${key}`
+    : `https://mobile.fmcsa.dot.gov/qc/services/carriers/${value}?webKey=${key}`;
 
   try {
-    const endpoint = mode === "MC"
-      ? `https://mobile.fmcsa.dot.gov/qc/services/carriers/docket-number/${cleanValue}?webKey=${fmcsaKey}`
-      : `https://mobile.fmcsa.dot.gov/qc/services/carriers/${cleanValue}?webKey=${fmcsaKey}`;
-
-    console.log("[fmcsa] calling endpoint for", mode, cleanValue);
-    const res = await fetch(endpoint, { signal: AbortSignal.timeout(10000) });
-    console.log("[fmcsa] response status:", res.status);
+    console.log("[fmcsa] fetching:", url.replace(key, "***"));
+    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    const text = await res.text();
+    console.log("[fmcsa] status:", res.status, "| snippet:", text.slice(0, 300));
     if (!res.ok) return null;
 
-    const json = await res.json();
-    const c = json?.content?.carrier;
-    console.log("[fmcsa] carrier found:", !!c, c?.legalName);
+    const json = JSON.parse(text);
+    // FMCSA returns either content.carrier (single) or content (array)
+    const c = json?.content?.carrier ?? (Array.isArray(json?.content) ? json.content[0]?.carrier : null);
+    console.log("[fmcsa] carrier found:", !!c, c?.legalName ?? "—");
     if (!c) return null;
 
     return {
@@ -147,49 +137,46 @@ async function fmcsaLookup(mode: string, cleanValue: string): Promise<Record<str
       phone: c.telephone || "",
       email: c.emailAddress || "",
       dot: String(c.dotNumber || ""),
-      mc: c.mcNumber ? `MC${c.mcNumber}` : (mode === "MC" ? `MC${cleanValue}` : ""),
+      mc: c.prefix && c.docketNumber ? `${c.prefix}${c.docketNumber}` : (mode === "MC" ? `MC${value}` : ""),
       type: "Motor Carrier",
       status: c.allowedToOperate === "Y" ? "Active" : "Inactive",
       source: "fmcsa",
     };
   } catch (err) {
-    console.error("[fmcsa] error:", err);
+    console.error("[fmcsa] error:", String(err));
     return null;
   }
 }
 
+// ─── Route handler ─────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const mode = searchParams.get("mode") || "MC";
-  const value = searchParams.get("value") || "";
-  const cleanValue = value.replace(/[^0-9]/g, "");
+  const mode = (searchParams.get("mode") || "MC").toUpperCase();
+  const raw = searchParams.get("value") || "";
+  const value = raw.replace(/[^0-9]/g, "");
 
-  console.log("[lookup] mode:", mode, "value:", cleanValue);
+  if (value.length < 3) return NextResponse.json({ carrier: null, error: "Too short" });
 
-  if (cleanValue.length < 3) {
-    return NextResponse.json({ carrier: null, error: "Number too short" });
-  }
-
-  // Format docket: MC + 6 digits padded with leading zeros
-  const docket = `MC${cleanValue.padStart(6, "0")}`;
-  console.log("[lookup] formatted docket:", docket);
+  // Carrier411 needs: MC + 6 digits zero-padded e.g. MC012345
+  const docket = `MC${value.padStart(6, "0")}`;
+  console.log("[lookup] mode:", mode, "clean value:", value, "docket:", docket);
 
   let carrier: Record<string, string> | null = null;
 
-  // Try Carrier411 first (MC lookups only)
+  // ── Try Carrier411 first (MC only) ──
   if (mode === "MC") {
-    const sessionUUID = await carrier411Login();
-    if (sessionUUID) {
-      carrier = await carrier411GetCompany(sessionUUID, docket);
+    const session = await carrier411Login();
+    if (session) {
+      carrier = await carrier411GetCompany(session, docket);
     }
   }
 
-  // Fallback to FMCSA
+  // ── Fallback to FMCSA ──
   if (!carrier) {
-    console.log("[lookup] falling back to FMCSA");
-    carrier = await fmcsaLookup(mode, cleanValue);
+    console.log("[lookup] trying FMCSA fallback");
+    carrier = await fmcsaLookup(mode, value);
   }
 
-  console.log("[lookup] final result:", carrier ? `found: ${carrier.name}` : "not found");
-  return NextResponse.json({ carrier: carrier || null });
+  console.log("[lookup] result:", carrier ? `✓ ${carrier.name} (${carrier.source})` : "not found");
+  return NextResponse.json({ carrier: carrier ?? null });
 }
