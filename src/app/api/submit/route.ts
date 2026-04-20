@@ -133,9 +133,8 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
 <div class="f"><div class="lbl">Title</div><div class="val">${sig.signerTitle as string || "—"}</div></div>
 <div class="f"><div class="lbl">Date Signed</div><div class="val">${today}</div></div>
 <div class="f"><div class="lbl">IP Address</div><div class="val" style="font-family:monospace;font-size:12px">${ipAddress}</div></div>
-${geoInfo.city ? `<div class="f"><div class="lbl">Location</div><div class="val">${[geoInfo.city, geoInfo.region, geoInfo.country].filter(Boolean).join(", ")}</div></div>` : ""}
-${geoInfo.isp ? `<div class="f"><div class="lbl">ISP / Provider</div><div class="val">${geoInfo.isp}</div></div>` : ""}
-${geoInfo.org && geoInfo.org !== geoInfo.isp ? `<div class="f"><div class="lbl">Organization</div><div class="val">${geoInfo.org}</div></div>` : ""}
+${geoInfo.city || geoInfo.region ? `<div class="f"><div class="lbl">Signed From</div><div class="val"><strong>${[geoInfo.city, geoInfo.region].filter(Boolean).join(", ")}</strong>${geoInfo.country ? ` &nbsp;(${geoInfo.country})` : ""}</div></div>` : ""}
+${geoInfo.isp ? `<div class="f"><div class="lbl">Internet Provider</div><div class="val"><strong>${geoInfo.isp}</strong></div></div>` : ""}
 ${geoInfo.mobile ? `<div class="f"><div class="lbl">Mobile Device</div><div class="val">${geoInfo.mobile}</div></div>` : ""}
 ${geoInfo.proxy && geoInfo.proxy !== "No" ? `<div class="f" style="grid-column:1/-1"><div class="lbl">⚠ Proxy / VPN</div><div class="val" style="color:#CC1B1B;font-weight:700">${geoInfo.proxy} — Signed via proxy or VPN</div></div>` : ""}
 </div></div></div>
