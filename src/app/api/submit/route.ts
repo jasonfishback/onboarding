@@ -140,11 +140,18 @@ ${geoInfo.proxy && geoInfo.proxy !== "No" ? `<div class="f" style="grid-column:1
 </div></div></div>
 
 </div>
-<div class="ftr">Simon Express Logistics LLC &nbsp;·&nbsp; PO Box 1582, Riverton, UT 84065 &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; MC# 077997-B &nbsp;·&nbsp; DOT# 3001453</div>
+<div class="ftr">
+  Simon Express Logistics LLC &nbsp;·&nbsp; PO Box 1582, Riverton, UT 84065 &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; MC# 077997-B &nbsp;·&nbsp; DOT# 3001453
+  <br style="margin:3px 0">
+  <span style="border-top:1px solid #555;display:block;padding-top:4px;margin-top:4px">
+    ${name} &nbsp;·&nbsp; ${mc !== "—" ? `MC# ${mc}` : ""} ${dot !== "—" ? `&nbsp;·&nbsp; DOT# ${dot}` : ""}
+  </span>
+</div>
 </div></body></html>`;
 }
 
-function buildCarrierConfirmEmail(companyName: string, today: string): string {
+function buildCarrierConfirmEmail(companyName: string, today: string, mc?: string, dot?: string): string {
+  const carrierLine = [companyName, mc ? `MC# ${mc}` : "", dot ? `DOT# ${dot}` : ""].filter(Boolean).join(" · ");
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
 .wrap{max-width:600px;margin:0 auto;background:white;border:2px solid #1a1a1a;box-shadow:4px 4px 0 #1a1a1a}
@@ -154,18 +161,21 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
 .box{background:#f5f3ef;border:1.5px solid #ddd;padding:16px 20px;margin:20px 0;border-radius:2px}
 .ftr{background:#f5f3ef;border-top:1px solid #ddd;padding:16px 28px;font-size:11px;color:#888;text-align:center}
 </style></head><body><div class="wrap">
-<div class="hdr"><h1>✓ Application Received</h1><p>Simon Express Logistics LLC — ${today}</p></div>
+<div class="hdr"><h1>Application Received</h1><p>Simon Express Logistics LLC — ${today}</p></div>
 <div class="body">
 <p>Thank you, <strong>${companyName}</strong>!</p>
 <p>We've received your carrier onboarding application. Our team will review your documents and be in touch shortly.</p>
 <div class="box">
-<strong>📞 Questions?</strong><br>
+<strong>Questions?</strong><br>
 Call us at <strong>801-260-7010</strong><br>
 Email: <a href="mailto:dispatch@simonexpress.com">dispatch@simonexpress.com</a><br>
 Fax: 801-663-7537
 </div>
 </div>
-<div class="ftr">Simon Express Logistics LLC · PO Box 1582, Riverton, UT 84065 · MC# 077997-B &nbsp;·&nbsp; DOT# 3001453</div>
+<div class="ftr">
+  Simon Express Logistics LLC &nbsp;·&nbsp; PO Box 1582, Riverton, UT 84065 &nbsp;·&nbsp; MC# 077997-B &nbsp;·&nbsp; DOT# 3001453
+  <br><span style="display:block;border-top:1px solid #ccc;margin-top:5px;padding-top:5px">${carrierLine}</span>
+</div>
 </div></body></html>`;
 }
 
@@ -293,7 +303,7 @@ export async function POST(req: NextRequest) {
         from: FROM,
         to: [carrierEmail],
         subject: `✓ Simon Express — Carrier Application Received`,
-        html: buildCarrierConfirmEmail(companyName, today),
+        html: buildCarrierConfirmEmail(companyName, today, (companyData?.mc as string) || (fmcsaData?.mc as string), (companyData?.dot as string) || (fmcsaData?.dot as string)),
       });
       console.log("[submit] carrier confirmation sent to:", carrierEmail);
     }

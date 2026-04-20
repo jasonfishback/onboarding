@@ -20,7 +20,7 @@ interface Fonts {
 }
 
 // ─── Helper: add a new page with header/footer ─────────────────────────────
-function addPage(doc: PDFDocument, fonts: Fonts, pageNum: number, totalPages?: number): { page: PDFPage; y: number } {
+function addPage(doc: PDFDocument, fonts: Fonts, pageNum: number, totalPages?: number, carrierInfo?: { name: string; mc: string; dot: string }): { page: PDFPage; y: number } {
   const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
 
   // Header bar
@@ -32,14 +32,29 @@ function addPage(doc: PDFDocument, fonts: Fonts, pageNum: number, totalPages?: n
     x: PAGE_WIDTH - MARGIN - 130, y: PAGE_HEIGHT - 26, size: 9, font: fonts.regular, color: rgb(0.7, 0.7, 0.7),
   });
 
-  // Footer
-  page.drawLine({ start: { x: MARGIN, y: 30 }, end: { x: PAGE_WIDTH - MARGIN, y: 30 }, thickness: 0.5, color: LIGHT_GRAY });
-  page.drawText("Simon Express Logistics LLC  ·  PO Box 1582, Riverton, UT 84065  ·  801-260-7010  ·  MC# 077997-B  ·  DOT# 3001453", {
-    x: MARGIN, y: 16, size: 7, font: fonts.regular, color: GRAY,
+  // Footer — two lines: broker | carrier
+  page.drawLine({ start: { x: MARGIN, y: 36 }, end: { x: PAGE_WIDTH - MARGIN, y: 36 }, thickness: 0.5, color: LIGHT_GRAY });
+
+  // Line 1: Simon Express
+  page.drawText("BROKER: Simon Express Logistics LLC  ·  PO Box 1582, Riverton, UT 84065  ·  801-260-7010  ·  MC# 077997-B  ·  DOT# 3001453", {
+    x: MARGIN, y: 24, size: 6.5, font: fonts.regular, color: GRAY,
   });
+
+  // Line 2: Carrier (if available)
+  if (carrierInfo?.name) {
+    const carrierLine = [
+      `CARRIER: ${carrierInfo.name}`,
+      carrierInfo.mc ? `MC# ${carrierInfo.mc}` : "",
+      carrierInfo.dot ? `DOT# ${carrierInfo.dot}` : "",
+    ].filter(Boolean).join("  ·  ");
+    page.drawText(carrierLine, {
+      x: MARGIN, y: 13, size: 6.5, font: fonts.regular, color: GRAY,
+    });
+  }
+
   if (totalPages) {
     page.drawText(`Page ${pageNum} of ${totalPages}`, {
-      x: PAGE_WIDTH - MARGIN - 60, y: 16, size: 7, font: fonts.regular, color: GRAY,
+      x: PAGE_WIDTH - MARGIN - 60, y: 18, size: 7, font: fonts.regular, color: GRAY,
     });
   }
 
@@ -105,10 +120,10 @@ function drawParagraph(page: PDFPage, fonts: Fonts, x: number, y: number, text: 
 }
 
 // ─── Helper: check if we need a new page ──────────────────────────────────
-function checkPageBreak(doc: PDFDocument, fonts: Fonts, page: PDFPage, y: number, needed: number, pageCounter: { n: number }): { page: PDFPage; y: number } {
+function checkPageBreak(doc: PDFDocument, fonts: Fonts, page: PDFPage, y: number, needed: number, pageCounter: { n: number }, carrierInfo?: { name: string; mc: string; dot: string }): { page: PDFPage; y: number } {
   if (y - needed < 50) {
     pageCounter.n++;
-    return addPage(doc, fonts, pageCounter.n);
+    return addPage(doc, fonts, pageCounter.n, undefined, carrierInfo);
   }
   return { page, y };
 }
@@ -120,10 +135,11 @@ function buildCarrierProfilePage(
   doc: PDFDocument,
   fonts: Fonts,
   data: Record<string, unknown>,
-  pageCounter: { n: number }
+  pageCounter: { n: number },
+  carrierInfo?: { name: string; mc: string; dot: string }
 ) {
   pageCounter.n++;
-  const { page, y: startY } = addPage(doc, fonts, pageCounter.n);
+  const { page, y: startY } = addPage(doc, fonts, pageCounter.n, undefined, carrierInfo);
   let y = startY;
 
   // Title
@@ -261,10 +277,11 @@ async function buildWorkersCompPage(
   doc: PDFDocument,
   fonts: Fonts,
   data: Record<string, unknown>,
-  pageCounter: { n: number }
+  pageCounter: { n: number },
+  carrierInfo?: { name: string; mc: string; dot: string }
 ) {
   pageCounter.n++;
-  const { page, y: startY } = addPage(doc, fonts, pageCounter.n);
+  const { page, y: startY } = addPage(doc, fonts, pageCounter.n, undefined, carrierInfo);
   let y = startY;
 
   const wc = (data.wcData || {}) as Record<string, unknown>;
@@ -386,10 +403,11 @@ async function buildAgreementPages(
   doc: PDFDocument,
   fonts: Fonts,
   data: Record<string, unknown>,
-  pageCounter: { n: number }
+  pageCounter: { n: number },
+  carrierInfo?: { name: string; mc: string; dot: string }
 ) {
   pageCounter.n++;
-  let { page, y } = addPage(doc, fonts, pageCounter.n);
+  let { page, y } = addPage(doc, fonts, pageCounter.n, undefined, carrierInfo);
 
   const sig = (data.sigData || {}) as Record<string, unknown>;
   const company = (data.companyData || data.fmcsaData || {}) as Record<string, string>;
@@ -413,7 +431,7 @@ async function buildAgreementPages(
   y -= 18;
 
   // ── Section I - Recitals ───────────────────────────────────────────────
-  ({ page, y } = checkPageBreak(doc, fonts, page, y, 80, pageCounter));
+  ({ page, y } = checkPageBreak(doc, fonts, page, y, 80, pageCounter, carrierInfo));
   page.drawText("I.", { x: MARGIN, y, size: 10, font: fonts.bold, color: BLACK });
   y -= 14;
   page.drawText("Recitals", { x: MARGIN, y, size: 10, font: fonts.bold, color: BLACK });
@@ -461,7 +479,7 @@ async function buildAgreementPages(
   for (const [title, text] of clauses) {
     const lineCount = Math.ceil(fonts.regular.widthOfTextAtSize(text, 8.5) / CONTENT_WIDTH) + 2;
     const estimated = 16 + lineCount * 12 + 14;
-    ({ page, y } = checkPageBreak(doc, fonts, page, y, estimated, pageCounter));
+    ({ page, y } = checkPageBreak(doc, fonts, page, y, estimated, pageCounter, carrierInfo));
 
     // Bold underlined clause title
     const cleanTitle = title.replace(/\t/g, "  ");
@@ -472,7 +490,7 @@ async function buildAgreementPages(
   }
 
   // ── Signature block ────────────────────────────────────────────────────
-  ({ page, y } = checkPageBreak(doc, fonts, page, y, 220, pageCounter));
+  ({ page, y } = checkPageBreak(doc, fonts, page, y, 220, pageCounter, carrierInfo));
 
   y -= 10;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 0.5, color: LIGHT_GRAY });
@@ -576,14 +594,22 @@ export async function generateOnboardingPDF(data: Record<string, unknown>): Prom
   const fonts: Fonts = { regular: fontRegular, bold: fontBold };
   const pageCounter = { n: 0 };
 
+  // Build carrier info for footers
+  const company = (data.companyData || data.fmcsaData || {}) as Record<string, string>;
+  const carrierInfo = {
+    name: sanitize(company.legalName || company.name || ""),
+    mc: sanitize(company.mc || ""),
+    dot: sanitize(company.dot || ""),
+  };
+
   // Page 1: Carrier Profile
-  buildCarrierProfilePage(doc, fonts, data, pageCounter);
+  buildCarrierProfilePage(doc, fonts, data, pageCounter, carrierInfo);
 
   // Page 2: Workers Comp
-  await buildWorkersCompPage(doc, fonts, data, pageCounter);
+  await buildWorkersCompPage(doc, fonts, data, pageCounter, carrierInfo);
 
   // Pages 3+: Agreement
-  await buildAgreementPages(doc, fonts, data, pageCounter);
+  await buildAgreementPages(doc, fonts, data, pageCounter, carrierInfo);
 
   // Update page numbers now that we know total
   const total = doc.getPageCount();
