@@ -375,54 +375,102 @@ async function buildAgreementPages(
   const sig = (data.sigData || {}) as Record<string, unknown>;
   const company = (data.companyData || data.fmcsaData || {}) as Record<string, string>;
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const carrierName = company.legalName || company.name || "________________________";
+  const carrierMC = company.mc || "____________";
+  const carrierAddr = [company.address, company.city, company.state, company.zip].filter(Boolean).join(", ") || "________________________";
 
-  // Title
-  page.drawText("CARRIER TRANSPORTATION AGREEMENT", { x: MARGIN, y, size: 16, font: fonts.bold, color: BLACK });
-  y -= 8;
-  page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 2, color: RED });
-  y -= 18;
-
-  // Parties header
-  page.drawText("Simon Express Logistics LLC — Freight Broker", { x: MARGIN, y, size: 10, font: fonts.bold, color: BLACK });
-  y -= 13;
-  page.drawText("PO Box 1582, Riverton, UT 84065  ·  Phone: 801-260-7010  ·  Fax: 801-663-7537  ·  MC# 1003278", {
-    x: MARGIN, y, size: 8, font: fonts.regular, color: GRAY,
+  // ── Title ──────────────────────────────────────────────────────────────
+  page.drawText("BROKER-CARRIER TRANSPORTATION SERVICES AGREEMENT", {
+    x: PAGE_WIDTH / 2, y, size: 12, font: fonts.bold, color: BLACK,
+    options: { align: "center" } as never,
   });
+  // Center manually
+  const titleW = fonts.bold.widthOfTextAtSize("BROKER-CARRIER TRANSPORTATION SERVICES AGREEMENT", 12);
+  page.drawLine({ start: { x: (PAGE_WIDTH - titleW) / 2, y: y - 2 }, end: { x: (PAGE_WIDTH + titleW) / 2, y: y - 2 }, thickness: 0.5, color: BLACK });
+  y -= 20;
+
+  // ── Opening paragraph ──────────────────────────────────────────────────
+  const opening = `THIS AGREEMENT is made and entered into on ${today}, by and between Simon Express Logistics LLC ("BROKER") PO Box 1582, Riverton, Utah 84065. (MC# 077997-B) and`;
+  y = drawParagraph(page, fonts, MARGIN, y, opening, 9);
+  y -= 10;
+
+  // Carrier name line
+  page.drawLine({ start: { x: MARGIN, y: y + 2 }, end: { x: MARGIN + 200, y: y + 2 }, thickness: 0.75, color: BLACK });
+  page.drawText(carrierName, { x: MARGIN + 2, y: y + 4, size: 9, font: fonts.bold, color: BLACK });
+  page.drawText('("CARRIER"), (a', { x: MARGIN + 210, y: y + 4, size: 9, font: fonts.regular, color: BLACK });
+  page.drawLine({ start: { x: MARGIN + 275, y: y + 2 }, end: { x: MARGIN + 380, y: y + 2 }, thickness: 0.75, color: BLACK });
+  page.drawText('corporation), ("MC#', { x: MARGIN + 385, y: y + 4, size: 9, font: fonts.regular, color: BLACK });
+  page.drawText(carrierMC, { x: MARGIN + 462, y: y + 4, size: 9, font: fonts.bold, color: BLACK });
+  page.drawText('"),', { x: MARGIN + 500, y: y + 4, size: 9, font: fonts.regular, color: BLACK });
+  y -= 20;
+
+  page.drawText("with principal offices located at:", { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
+  y -= 14;
+  page.drawLine({ start: { x: MARGIN, y: y + 2 }, end: { x: PAGE_WIDTH - MARGIN, y: y + 2 }, thickness: 0.75, color: BLACK });
+  page.drawText(carrierAddr, { x: MARGIN + 2, y: y + 4, size: 9, font: fonts.bold, color: BLACK });
   y -= 22;
 
-  const clauses = [
-    ["1. INDEPENDENT CONTRACTOR", "CARRIER is an independent contractor and is not an employee, partner, or agent of BROKER. CARRIER retains complete direction and control over the means, manner, and method of transportation. CARRIER acknowledges it has no authority to legally bind or obligate BROKER in any manner."],
-    ["2. REGULATORY COMPLIANCE", "CARRIER warrants that it is, and will remain, duly and legally licensed and authorized to perform transportation services pursuant to applicable federal and state laws and regulations. CARRIER will provide evidence of operating authority as requested. CARRIER shall immediately notify BROKER of any revocation or suspension of its operating authority."],
-    ["3. SAFETY", "CARRIER shall comply with all federal, state and local laws, rules, ordinances and regulations applicable to the transportation of freight, including but not limited to all laws and regulations related to hours of service, driver qualification, drug and alcohol testing, vehicle safety, and hazardous materials. CARRIER certifies that all drivers assigned to BROKER freight will be properly trained, licensed, and in compliance with DOT regulations."],
-    ["4. EXCLUSIVE USE OF CARRIER EQUIPMENT", "The transportation services hereunder shall be performed using equipment that is exclusively operated under CARRIER's authority, owned or leased by CARRIER, and driven by CARRIER's employees or independent contractors who are properly enrolled in CARRIER's drug testing program. CARRIER shall ensure that all equipment used meets federal and state safety requirements."],
-    ["5. INDEMNIFICATION", "CARRIER shall defend, indemnify and hold harmless BROKER, its officers, directors, employees and agents from any and all claims, losses, liabilities, damages, costs and expenses (including reasonable attorney's fees) arising from or related to: (a) CARRIER's negligence or willful misconduct; (b) CARRIER's breach of this Agreement; (c) personal injury or property damage caused by CARRIER; or (d) CARRIER's failure to comply with applicable laws and regulations."],
-    ["6. EXCLUSIVE CONTROL OF SHIPMENTS", "CARRIER shall not sub-contract, broker, or arrange for the freight tendered by BROKER to be transported by a third party without the prior written consent of BROKER. CARRIER agrees that BROKER has the exclusive right to handle all billing of freight charges to the Customer."],
-    ["7. INSURANCE", "CARRIER shall procure and maintain, at its sole cost and expense: (a) Automobile liability insurance — not less than $1,000,000.00 per occurrence; (b) All-risk broad-form Motor Truck Cargo Legal Liability insurance — not less than $100,000.00 per occurrence, naming CARRIER and BROKER as insureds; (c) Statutory Workers' Compensation Insurance and Employer Liability coverage as required by applicable state law. CARRIER shall furnish written certifications from insurance carriers rated A- or better by A.M. Best, and shall provide at least thirty (30) days written notice of cancellation or modification. CARRIER agrees to name BROKER as an additional insured on automobile liability; as loss payee on cargo legal liability; and as alternative employer on workers' compensation."],
-    ["8. CARGO LIABILITY", "CARRIER shall have the sole and exclusive care, custody and control of Customer's property from pickup until delivery. CARRIER assumes the liability of a common carrier (Carmack Amendment liability) for loss, delay, damage to or destruction of any and all Customer's goods or property while under CARRIER's care, custody or control. CARRIER shall pay to BROKER the Customer's full actual loss within thirty (30) days following receipt of BROKER's invoice and supporting documentation."],
-    ["9. WAIVER OF CARRIER'S LIEN", "CARRIER shall not withhold any goods of the Customer on account of any dispute as to rates or any alleged failure of BROKER to pay charges. CARRIER hereby waives and releases all liens which CARRIER might otherwise have to any goods of BROKER or its Customer in the possession or control of CARRIER."],
-    ["10. INVOICING AND PAYMENT", "CARRIER will charge and BROKER will pay for transportation services at the rates shown on separate Rate Confirmation Sheets to be signed before each shipment. Standard payment terms are thirty (30) days within receipt by BROKER unless other terms are selected. CARRIER agrees that BROKER has the exclusive right to handle all billing of freight charges to the Customer, and CARRIER agrees to refrain from all collection efforts against the shipper, receiver, consignor, consignee or Customer."],
-    ["11. CONFIDENTIALITY AND NON-SOLICITATION", "Neither party may disclose the terms of this Agreement to a third party without written consent. CARRIER will not solicit or obtain traffic from any shipper, consignor, consignee, or customer of BROKER where the availability of such traffic first became known to CARRIER as a result of BROKER's efforts. If CARRIER breaches this Agreement, CARRIER shall pay BROKER commission in the amount of thirty-five percent (35%) of the transportation revenue resulting from such traffic for a period of 15 months thereafter."],
-    ["12. SUB-CONTRACT PROHIBITION", "CARRIER specifically agrees that all freight tendered to it by BROKER shall be transported on equipment operated only under the authority of CARRIER, and that CARRIER shall not sub-contract, broker, or arrange for the freight to be transported by a third party without the prior written consent of BROKER. CARRIER shall defend, indemnify and hold harmless BROKER from any claims for duplicate payments claimed to be due to any sub-contractor or third party used by CARRIER."],
-    ["13. ASSIGNMENT / MODIFICATION", "This Agreement may not be assigned or transferred in whole or in part, and supersedes all other agreements and all tariffs, rates, classifications and schedules published, filed or otherwise maintained by CARRIER."],
-    ["14. SEVERABILITY", "In the event that the operation of any portion of this Agreement results in violation of any law, the parties agree that such portion shall be severable and that the remaining provisions shall continue in full force and effect."],
-    ["15. WAIVER", "CARRIER and Shipper expressly waive any and all rights and remedies allowed under 49 U.S.C. § 14101 to the extent that such rights and remedies conflict with this Agreement. Failure of BROKER to insist upon CARRIER's performance shall not be a waiver of any BROKER's rights or privileges herein."],
-    ["16. DISPUTE RESOLUTION", "This Agreement shall be deemed to have been drawn in accordance with the statutes and laws of the State of Utah and in the event of any disagreement or dispute, the laws of this state shall apply and suit must be brought in this state."],
+  // ── Section I - Recitals ───────────────────────────────────────────────
+  ({ page, y } = checkPageBreak(doc, fonts, page, y, 80, pageCounter));
+  page.drawText("I.", { x: MARGIN, y, size: 10, font: fonts.bold, color: BLACK });
+  y -= 14;
+  page.drawText("Recitals", { x: MARGIN, y, size: 10, font: fonts.bold, color: BLACK });
+  page.drawLine({ start: { x: MARGIN, y: y - 1 }, end: { x: MARGIN + 50, y: y - 1 }, thickness: 0.5, color: BLACK });
+  y -= 16;
+
+  y = drawParagraph(page, fonts, MARGIN, y,
+    "A.\t\tBROKER is a licensed transportation broker that controls the transportation of freight under its contractual arrangements with various consignors and consignees (the \"Customer\");", 9, CONTENT_WIDTH);
+  y -= 10;
+  y = drawParagraph(page, fonts, MARGIN, y,
+    "B.\t\tCARRIER is authorized to operate in inter-provincial, interstate and/or intrastate commerce and is qualified, competent and available to provide for the transportation services required by BROKER.", 9, CONTENT_WIDTH);
+  y -= 18;
+
+  // ── Section II - Agreement ─────────────────────────────────────────────
+  page.drawText("II.", { x: MARGIN, y, size: 10, font: fonts.bold, color: BLACK });
+  y -= 14;
+  page.drawText("Agreement", { x: MARGIN, y, size: 10, font: fonts.bold, color: BLACK });
+  page.drawLine({ start: { x: MARGIN, y: y - 1 }, end: { x: MARGIN + 58, y: y - 1 }, thickness: 0.5, color: BLACK });
+  y -= 18;
+
+  // ── Detailed clauses matching the uploaded document ────────────────────
+  const clauses: [string, string][] = [
+    ["1.\t\tTERM.", "The Term of this Agreement shall be for one (1) year and shall automatically renew for successive one (1) year periods; provided, however, that this Agreement may be terminated at any time by giving thirty (30) days prior written notice."],
+    ["2.\t\tCARRIER'S OPERATING AUTHORITY AND COMPLIANCE WITH LAW.", "CARRIER represents and warrants that it is duly and legally qualified to provide, as a contract carrier, the transportation services contemplated herein. CARRIER further represents and warrants that it does have a conditional or unsatisfactory safety rating issued from the United States Department of Transportation (\"DOT\"), and further agrees to notify BROKER within twenty-four (24) hours of receiving a conditional or unsatisfactory Safety Rating from the DOT. In the event that CARRIER is requested by BROKER to transport any shipment required by the DOT to be placarded as a hazardous material, the parties agree that the additional provisions included in Appendix A shall apply for each such shipment."],
+    ["3.\t\tPERFORMANCE OF SERVICES.", "Carrier's services under this Agreement are specifically designed to meet the distinct needs of BROKER under the specified rates and conditions set forth herein. CARRIER shall transport all shipments provided under this Agreement without delay, and all occurrences which would be probable or certain to cause delay shall be immediately communicated to BROKER by CARRIER. This Agreement does not grant CARRIER an exclusive right to perform the transportation related serviced for BROKER or its Customer."],
+    ["4.\t\tRECEIPTS AND BILLS OF LADING.", "Each shipment hereunder shall be evidenced by a Uniform (Standard) Bill of Lading naming CARRIER as the transporting carrier. When picking up a load at a shipper's facility, CARRIER shall instruct its drivers to obtain the correct bill of lading showing CARRIER as the carrier. If it is not, CARRIER shall, or will instruct its drivers to mark out BROKERS's name on any bill of lading and to write in CARRIER's name as the motor carrier of record for the delivery. Regardless of whether the BROKER nor the services provided by the BROKER. Upon delivery of each shipment made hereunder, CARRIER shall obtain a receipt showing the kind and quantity of product delivered to the consignee of such shipment at the destination specified by BROKER or the Customer, and CARRIER shall cause such receipt to be signed by the consignee or its agent. If for any reason any consignee refuses to sign for the shipment, CARRIER shall report the same to BROKER immediately. CARRIER shall immediately forward freight bills together with any proof of delivery to BROKER."],
+    ["5.\t\tRATES AND ACCESSORIALS.", "Rates are established by separate Rate Confirmation Sheet for each and every load. All rate quotes are the result of arm's length negotiations between BROKER and CARRIER and are not established through any rate bureau. Any accessorial charges not agreed to prior to loading will not be recognized or paid by the BROKER. The Rate Confirmation Sheet is incorporated into and made a part of this Agreement."],
+    ["6.\t\tINVOICING AND PAYMENT.", "CARRIER will charge and BROKER will pay for transportation services at the rates shown on separate Rate Confirmation Sheets to be signed before each shipment. Standard payment terms are net thirty (30) days within receipt by BROKER. CARRIER agrees that BROKER has the exclusive right to handle all billing of freight charges to the Customer, and CARRIER agrees to refrain from all collection efforts against the shipper, receiver, consignor, consignee or Customer. If CARRIER uses a factoring company or assigns its receivables, CARRIER must notify BROKER in writing. BROKER will not be bound by any such assignment unless properly notified."],
+    ["7.\t\tINDEPENDENT CONTRACTOR.", "CARRIER is an independent contractor and is not an employee, partner, or joint venturer of BROKER. CARRIER shall be solely responsible for the manner in which it performs its duties hereunder. CARRIER shall be solely responsible for the payment of all federal, state and local taxes owed in connection with compensation paid under this Agreement, and shall make all withholding and payment of employment taxes for its employees. CARRIER represents that it has worker's compensation insurance as required by applicable law or qualifies for an exemption."],
+    ["8.\t\tINSURANCE.", "CARRIER shall procure and maintain, at its sole cost and expense, the following insurance coverages with insurers with a minimum A.M. Best rating of A-: (a) Automobile liability insurance in an amount not less than $1,000,000.00 per occurrence; (b) All-risk broad-form Motor Truck Cargo Legal Liability insurance in an amount not less than $100,000.00 per occurrence; (c) Statutory Workers' Compensation Insurance and Employer Liability coverage as required by applicable state law; (d) General Liability insurance in an amount not less than $1,000,000.00 per occurrence. CARRIER shall name BROKER as an additional insured on automobile liability; as loss payee on cargo legal liability. CARRIER shall provide BROKER with certificates of insurance evidencing required coverage and shall provide at least thirty (30) days prior written notice of cancellation or material modification."],
+    ["9.\t\tCARGO LIABILITY.", "CARRIER shall have the sole and exclusive care, custody and control of Customer's property from pickup until delivery. CARRIER assumes the liability of a common carrier for loss, delay, damage to or destruction of any and all Customer's goods or property while in CARRIER's care, custody or control. CARRIER's liability shall be the actual loss or injury to the freight, not to exceed the invoice value of the goods. CARRIER shall pay to BROKER or allow BROKER to deduct, the Customer's full actual loss. Payments by CARRIER to BROKER shall be made within thirty (30) days following receipt of BROKER's written claim and supporting documentation."],
+    ["10.\t\tWAIVER OF LIEN.", "CARRIER shall not withhold delivery of any goods of Customer on account of any dispute as to rates or any alleged failure of BROKER to pay charges. CARRIER hereby waives and releases all liens which CARRIER might otherwise have to any goods of BROKER or its Customer in its possession or control."],
+    ["11.\t\tINDEMNIFICATION.", "CARRIER shall defend, indemnify, and hold harmless BROKER and its officers, directors, employees, and agents from and against any and all claims, damages, losses, costs and expenses, including reasonable attorneys' fees, arising out of or resulting from: (a) any negligent or wrongful act or omission of CARRIER, its employees, agents, or subcontractors; (b) any breach by CARRIER of any provision of this Agreement; (c) any violation by CARRIER of any applicable federal, state or local law, rule or regulation; or (d) any claims by CARRIER's employees for wages, benefits, taxes, or similar items."],
+    ["12.\t\tCONFIDENTIALITY AND NON-SOLICITATION.", "CARRIER agrees to keep confidential and not disclose to any third party any information regarding BROKER's customers, shippers, rates, lanes, and business operations. CARRIER shall not directly solicit or accept freight from any shipper or consignee that was introduced to CARRIER through BROKER for a period of twelve (12) months following the termination of this Agreement. In the event of breach, CARRIER shall pay BROKER a commission of thirty-five percent (35%) of the gross revenue generated from such traffic for a period of fifteen (15) months."],
+    ["13.\t\tSUBCONTRACTING.", "CARRIER shall not subcontract, broker, or co-broker any shipment tendered to it by BROKER without the prior written consent of BROKER. Any unauthorized subcontracting shall be a material breach of this Agreement. CARRIER shall be responsible for the acts and omissions of any subcontractor as if they were CARRIER's own."],
+    ["14.\t\tDRUG AND ALCOHOL TESTING.", "CARRIER represents and warrants that it has in effect a drug and alcohol testing program that meets or exceeds the requirements of 49 C.F.R. Part 382 for all drivers used to perform services under this Agreement. Upon request, CARRIER shall provide BROKER with documentation evidencing compliance with applicable DOT drug and alcohol testing regulations."],
+    ["15.\t\tCOMPLIANCE WITH LAWS.", "CARRIER shall comply with all federal, state and local laws, regulations, rules and ordinances applicable to the transportation services to be performed hereunder, including without limitation, the Federal Motor Carrier Safety Regulations (49 C.F.R. Parts 300-399), hours of service regulations, vehicle safety regulations, and all applicable environmental laws and regulations."],
+    ["16.\t\tASSIGNMENT.", "This Agreement may not be assigned or transferred, in whole or in part, by either party without the prior written consent of the other party. Any attempted assignment in violation of this section shall be null and void and of no force or effect."],
+    ["17.\t\tSEVERABILITY.", "In the event that any provision of this Agreement is held to be invalid or unenforceable, the remaining provisions shall continue in full force and effect. The invalid or unenforceable provision shall be modified to the minimum extent necessary to make it valid and enforceable."],
+    ["18.\t\tWAIVER.", "The failure of either party to enforce any provision of this Agreement shall not be construed as a waiver of that party's right to enforce such provision in the future. CARRIER and BROKER expressly waive any and all rights and remedies to the extent they conflict with this Agreement, including those under 49 U.S.C. § 14101."],
+    ["19.\t\tENTIRE AGREEMENT AND MODIFICATION.", "This Agreement, together with all Rate Confirmation Sheets issued pursuant hereto, constitutes the entire agreement between the parties with respect to the subject matter hereof and supersedes all prior agreements, representations and understandings. This Agreement may only be modified by a written instrument signed by authorized representatives of both parties."],
+    ["20.\t\tGOVERNING LAW AND DISPUTE RESOLUTION.", "This Agreement shall be governed by and construed in accordance with the laws of the State of Utah, without regard to its conflict of law principles. Any dispute arising under or related to this Agreement shall be resolved in the state or federal courts located in Salt Lake County, Utah, and the parties hereby consent to the personal jurisdiction of such courts."],
   ];
 
   for (const [title, text] of clauses) {
-    // Check page break
-    const estimated = 30 + Math.ceil((fonts.regular.widthOfTextAtSize(text, 8.5) / CONTENT_WIDTH) * 14);
+    const lineCount = Math.ceil(fonts.regular.widthOfTextAtSize(text, 8.5) / CONTENT_WIDTH) + 2;
+    const estimated = 16 + lineCount * 12 + 14;
     ({ page, y } = checkPageBreak(doc, fonts, page, y, estimated, pageCounter));
 
-    // Clause title
-    page.drawText(title as string, { x: MARGIN, y, size: 9, font: fonts.bold, color: BLACK });
+    // Bold underlined clause title
+    const cleanTitle = title.replace(/\t/g, "  ");
+    page.drawText(cleanTitle, { x: MARGIN, y, size: 9, font: fonts.bold, color: BLACK });
     y -= 13;
-    y = drawParagraph(page, fonts, MARGIN, y, text as string, 8.5);
+    y = drawParagraph(page, fonts, MARGIN + 16, y, text, 8.5, CONTENT_WIDTH - 16);
     y -= 10;
   }
 
-  // ── Signature block — needs its own check ──
-  ({ page, y } = checkPageBreak(doc, fonts, page, y, 180, pageCounter));
+  // ── Signature block ────────────────────────────────────────────────────
+  ({ page, y } = checkPageBreak(doc, fonts, page, y, 220, pageCounter));
 
   y -= 10;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 0.5, color: LIGHT_GRAY });
@@ -432,29 +480,26 @@ async function buildAgreementPages(
   const leftX = MARGIN;
   const rightX = PAGE_WIDTH / 2 + 20;
 
-  // BROKER side (left)
+  // Headers
   page.drawText("BROKER — Simon Express Logistics LLC", { x: leftX, y, size: 9, font: fonts.bold, color: BLACK });
-  page.drawText("CARRIER — " + (company.legalName || company.name || ""), { x: rightX, y, size: 9, font: fonts.bold, color: BLACK });
-  y -= 16;
+  page.drawText("CARRIER — " + carrierName, { x: rightX, y, size: 9, font: fonts.bold, color: BLACK });
+  y -= 14;
 
-  // Carrier address under their name
-  const carrierAddr = [
-    company.address,
-    [company.city, company.state, company.zip].filter(Boolean).join(", "),
-    company.phone,
+  // Carrier address block
+  const addrLines = [
+    carrierAddr,
+    company.phone ? `Phone: ${company.phone}` : "",
+    [company.mc ? `MC# ${company.mc}` : "", company.dot ? `DOT# ${company.dot}` : ""].filter(Boolean).join("   |   "),
   ].filter(Boolean);
-  for (const line of carrierAddr) {
-    page.drawText(String(line), { x: rightX, y, size: 7.5, font: fonts.regular, color: GRAY });
+  for (const line of addrLines) {
+    page.drawText(line, { x: rightX, y, size: 7.5, font: fonts.regular, color: GRAY });
     y -= 11;
   }
-  if (company.mc || company.dot) {
-    const mcDot = [company.mc ? `MC# ${company.mc}` : "", company.dot ? `DOT# ${company.dot}` : ""].filter(Boolean).join("   |   ");
-    page.drawText(mcDot, { x: rightX, y, size: 7.5, font: fonts.regular, color: GRAY });
-    y -= 14;
-  }
+  y -= 6;
 
-  // "By:" labels
-  page.drawText("By: Jason Fishback", { x: leftX, y, size: 9, font: fonts.regular, color: BLACK });
+  // "By:" row with signatures
+  page.drawText("By:", { x: leftX, y, size: 9, font: fonts.regular, color: GRAY });
+  page.drawText("Jason Fishback", { x: leftX + 24, y, size: 11, font: fonts.bold, color: BLACK });
   page.drawText("By:", { x: rightX, y, size: 9, font: fonts.regular, color: GRAY });
   y -= 4;
 
@@ -469,9 +514,8 @@ async function buildAgreementPages(
       const maxH = 55;
       const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
       page.drawImage(embeddedSig, { x: rightX + 20, y: y - sigDims.height + 16, width: sigDims.width, height: sigDims.height });
-      y -= Math.max(sigDims.height + 4, 20);
+      y -= Math.max(sigDims.height + 4, 22);
     } catch {
-      // fallback to typed name
       if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 20, y, size: 20, font: fonts.bold, color: BLACK });
       y -= 26;
     }
@@ -485,26 +529,29 @@ async function buildAgreementPages(
   page.drawLine({ start: { x: leftX, y }, end: { x: leftX + 220, y }, thickness: 0.75, color: BLACK });
   page.drawLine({ start: { x: rightX, y }, end: { x: rightX + 220, y }, thickness: 0.75, color: BLACK });
   y -= 14;
+
   page.drawText("Title: Director of Operations", { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
-  page.drawText(`Printed: ${String(sig.signerName || "—")}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
+  page.drawText(`Printed: ${String(sig.signerName || "________________________")}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
   y -= 14;
   page.drawText(`Date: ${today}`, { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
   page.drawText(`Date: ${today}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
   y -= 14;
+  page.drawText("Address: PO Box 1582, Riverton, UT 84065", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
   if (sig.signerTitle) {
     page.drawText(`Title: ${String(sig.signerTitle)}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
-    y -= 14;
   }
+  y -= 14;
+  page.drawText("Phone: 801-260-7010  |  Fax: 801-663-7537", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
+  y -= 20;
 
-  y -= 10;
-  // IP + legal notice
+  // Legal notice
   if (data.ipAddress) {
-    page.drawText(`IP Address: ${String(data.ipAddress)}  ·  Signed: ${today}`, {
-      x: MARGIN, y, size: 7.5, font: fonts.regular, color: GRAY,
+    page.drawText(`IP Address: ${String(data.ipAddress)}  ·  Signed electronically: ${today}`, {
+      x: MARGIN, y, size: 7, font: fonts.regular, color: GRAY,
     });
-    y -= 12;
+    y -= 11;
   }
-  page.drawText("This electronic signature is legally binding under the Electronic Signatures in Global and National Commerce Act (E-SIGN Act).", {
+  page.drawText("This electronic signature is legally binding under the Electronic Signatures in Global and National Commerce Act (E-SIGN Act, 15 U.S.C. § 7001 et seq.).", {
     x: MARGIN, y, size: 7, font: fonts.regular, color: GRAY,
   });
 }
