@@ -379,39 +379,22 @@ async function buildAgreementPages(
   const company = (data.companyData || data.fmcsaData || {}) as Record<string, string>;
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const carrierName = company.legalName || company.name || "________________________";
-  const carrierMC = company.mc || "____________";
+  const carrierMC = company.mc || "";
+  const carrierDOT = company.dot || "";
+  const carrierId = carrierMC ? `MC# ${carrierMC}` : carrierDOT ? `DOT# ${carrierDOT}` : "____________";
   const carrierAddr = [company.address, company.city, company.state, company.zip].filter(Boolean).join(", ") || "________________________";
 
   // ── Title ──────────────────────────────────────────────────────────────
-  page.drawText("BROKER-CARRIER TRANSPORTATION SERVICES AGREEMENT", {
-    x: PAGE_WIDTH / 2, y, size: 12, font: fonts.bold, color: BLACK,
-    options: { align: "center" } as never,
-  });
-  // Center manually
-  const titleW = fonts.bold.widthOfTextAtSize("BROKER-CARRIER TRANSPORTATION SERVICES AGREEMENT", 12);
+  const titleText = "BROKER-CARRIER TRANSPORTATION SERVICES AGREEMENT";
+  const titleW = fonts.bold.widthOfTextAtSize(titleText, 12);
+  page.drawText(titleText, { x: (PAGE_WIDTH - titleW) / 2, y, size: 12, font: fonts.bold, color: BLACK });
   page.drawLine({ start: { x: (PAGE_WIDTH - titleW) / 2, y: y - 2 }, end: { x: (PAGE_WIDTH + titleW) / 2, y: y - 2 }, thickness: 0.5, color: BLACK });
-  y -= 20;
+  y -= 24;
 
-  // ── Opening paragraph ──────────────────────────────────────────────────
-  const opening = `THIS AGREEMENT is made and entered into on ${today}, by and between Simon Express Logistics LLC ("BROKER") PO Box 1582, Riverton, Utah 84065. (MC# 077997-B) and`;
+  // ── Opening paragraph — carrier name and ID pre-filled ─────────────────
+  const opening = `THIS AGREEMENT is made and entered into on ${today}, by and between Simon Express Logistics LLC ("BROKER") PO Box 1582, Riverton, Utah 84065 (MC# 077997-B), and ${carrierName} ("CARRIER") (${carrierId}), with principal offices located at ${carrierAddr}.`;
   y = drawParagraph(page, fonts, MARGIN, y, opening, 9);
-  y -= 10;
-
-  // Carrier name line
-  page.drawLine({ start: { x: MARGIN, y: y + 2 }, end: { x: MARGIN + 200, y: y + 2 }, thickness: 0.75, color: BLACK });
-  page.drawText(carrierName, { x: MARGIN + 2, y: y + 4, size: 9, font: fonts.bold, color: BLACK });
-  page.drawText('("CARRIER"), (a', { x: MARGIN + 210, y: y + 4, size: 9, font: fonts.regular, color: BLACK });
-  page.drawLine({ start: { x: MARGIN + 275, y: y + 2 }, end: { x: MARGIN + 380, y: y + 2 }, thickness: 0.75, color: BLACK });
-  page.drawText('corporation), ("MC#', { x: MARGIN + 385, y: y + 4, size: 9, font: fonts.regular, color: BLACK });
-  page.drawText(carrierMC, { x: MARGIN + 462, y: y + 4, size: 9, font: fonts.bold, color: BLACK });
-  page.drawText('"),', { x: MARGIN + 500, y: y + 4, size: 9, font: fonts.regular, color: BLACK });
-  y -= 20;
-
-  page.drawText("with principal offices located at:", { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
-  y -= 14;
-  page.drawLine({ start: { x: MARGIN, y: y + 2 }, end: { x: PAGE_WIDTH - MARGIN, y: y + 2 }, thickness: 0.75, color: BLACK });
-  page.drawText(carrierAddr, { x: MARGIN + 2, y: y + 4, size: 9, font: fonts.bold, color: BLACK });
-  y -= 22;
+  y -= 18;
 
   // ── Section I - Recitals ───────────────────────────────────────────────
   ({ page, y } = checkPageBreak(doc, fonts, page, y, 80, pageCounter));

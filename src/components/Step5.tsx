@@ -7,9 +7,10 @@ interface Step5Props {
   onNext: (data: Record<string, unknown>) => void;
   onBack: () => void;
   companyName: string;
+  companyData?: Record<string, unknown>;
 }
 
-export default function Step5({ onNext, onBack, companyName }: Step5Props) {
+export default function Step5({ onNext, onBack, companyName, companyData }: Step5Props) {
   const [scrolled, setScrolled] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [sigMode, setSigMode] = useState<"type" | "draw">("type");
@@ -76,7 +77,7 @@ export default function Step5({ onNext, onBack, companyName }: Step5Props) {
           style={{ height: 420, overflowY: "auto", padding: "20px 24px", fontSize: 13, lineHeight: 1.8, color: "#333" }}
         >
           <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <strong style={{ fontSize: 16 }}>CARRIER TRANSPORTATION AGREEMENT</strong>
+            <strong style={{ fontSize: 16 }}>BROKER-CARRIER TRANSPORTATION SERVICES AGREEMENT</strong>
             <br />
             <strong>Simon Express Logistics LLC — Freight Broker</strong>
             <br />
@@ -86,7 +87,15 @@ export default function Step5({ onNext, onBack, companyName }: Step5Props) {
           </div>
 
           <p style={{ marginBottom: 10 }}>
-            This Carrier Transportation Agreement (&quot;Agreement&quot;) is entered into by and between Simon Express Logistics LLC (&quot;BROKER&quot;), a duly licensed property broker under 49 C.F.R. Part 371, MC# 1003278, and the carrier identified in this onboarding application (&quot;CARRIER&quot;).
+            This BROKER-CARRIER Transportation Services Agreement (&quot;Agreement&quot;) is entered into by and between{" "}
+            <strong>Simon Express Logistics LLC (&quot;BROKER&quot;)</strong>, PO Box 1582, Riverton, Utah 84065 (MC# 077997-B), and{" "}
+            <strong>{companyName} (&quot;CARRIER&quot;)</strong>
+            {(companyData?.mc || companyData?.dot) && (
+              <> ({companyData?.mc ? `MC# ${companyData.mc}` : `DOT# ${companyData.dot}`})</>
+            )}
+            {(companyData?.address || companyData?.city) && (
+              <>, with principal offices located at {[companyData?.address, companyData?.city, companyData?.state, companyData?.zip].filter(Boolean).join(", ")}</>
+            )}.
           </p>
 
           <p style={{ marginBottom: 10 }}><strong>1. INDEPENDENT CONTRACTOR.</strong> CARRIER is an independent contractor and is not an employee, partner, or agent of BROKER. CARRIER retains complete direction and control over the means, manner, and method of transportation. CARRIER acknowledges it has no authority to legally bind or obligate BROKER in any manner.</p>
