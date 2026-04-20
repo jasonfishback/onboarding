@@ -43,10 +43,11 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f5f3ef" }}>
-      <div style={{ background: DARK, padding: "12px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ background: DARK, padding: "10px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+        <img src="/logo.jpg" alt="Simon Express" style={{ height: 52, objectFit: "contain" }} />
         <div style={{ borderLeft: "1.5px solid #444", paddingLeft: 16 }}>
-          <div style={{ fontFamily: "DM Sans", fontSize: 22, color: "white", fontWeight: 700 }}>Simon Express</div>
-          <div style={{ fontSize: 13, color: "#aaa" }}>Carrier Onboarding — Salt Lake City, Utah</div>
+          <div style={{ fontFamily: "DM Sans", fontSize: 16, color: "white", fontWeight: 700 }}>Carrier Onboarding</div>
+          <div style={{ fontSize: 12, color: "#aaa" }}>Salt Lake City, Utah</div>
         </div>
         <div style={{ marginLeft: "auto", fontFamily: "DM Sans", fontSize: 14, color: "#888" }}>
           Need help? <a href="tel:8012607010" style={{ color: "#aaa" }}>801-260-7010</a>
