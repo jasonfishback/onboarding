@@ -594,6 +594,7 @@ async function buildAgreementPages(
       y -= 11;
     }
   }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN EXPORT: generateOnboardingPDF
