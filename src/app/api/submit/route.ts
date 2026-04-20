@@ -23,17 +23,61 @@ function buildDispatchEmail(data: {
   const tt = (companyData?.trailerTypes as Record<string, boolean>) || {};
   const trailers = [tt.reefer && "Reefer", tt.van && "Dry Van", tt.flatbed && "Flatbed"].filter(Boolean).join(", ") || "—";
 
+  // ── Document status logic ──
+  const docs = (docsData || {}) as Record<string, unknown>;
+  const uploads = (docs.uploads || {}) as Record<string, string>;
+  const wc = (wcData || {}) as Record<string, unknown>;
+  const sig = (sigData || {}) as Record<string, unknown>;
+
+  const agreementSigned = !!sig.signerName && !!sig.agreed;
+  const wcHasInsurance = !!wc.hasWC && !!wc.wcUpload;
+  const wcExemptSigned = !wc.hasWC && !!wc.exemptSigned && !!wc.signerName;
+  const wcOk = wcHasInsurance || wcExemptSigned;
+  const wcLabel = wcHasInsurance ? "Workers Comp — Insurance Certificate Uploaded" : wcExemptSigned ? "Workers Comp — Exemption Form Signed" : "Workers Comp";
+  const w9Ok = docs.w9Mode === "fill" ? !!(docs.w9Form as Record<string, string>)?.name : !!uploads.w9;
+  const w9Label = docs.w9Mode === "fill" ? "W-9 — Filled Out Online" : uploads.w9 ? `W-9 — Uploaded (${uploads.w9})` : "W-9";
+  const coiOk = !!uploads.ins || !!docs.emailSent;
+  const coiLabel = uploads.ins ? `Insurance Certificate — Uploaded (${uploads.ins})` : docs.emailSent ? `Insurance Certificate — Agent Notified (${docs.agentEmail})` : "Insurance Certificate";
+
+  // Helper: render a checklist row
+  const checkRow = (ok: boolean, label: string, detail?: string) => `
+  <tr>
+    <td style="padding:10px 14px;vertical-align:top;width:48px">
+      <div style="width:32px;height:32px;border-radius:50%;background:${ok ? "#22a355" : "#e0e0e0"};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;text-align:center;line-height:32px">
+        ${ok ? "✓" : "—"}
+      </div>
+    </td>
+    <td style="padding:10px 0;vertical-align:middle">
+      <div style="font-size:15px;font-weight:700;color:${ok ? "#1a1a1a" : "#999"}">${label}</div>
+      ${detail ? `<div style="font-size:12px;color:#888;margin-top:2px">${detail}</div>` : ""}
+    </td>
+    <td style="padding:10px 14px;vertical-align:middle;text-align:right;white-space:nowrap">
+      <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;font-weight:700;background:${ok ? "#edfaf3" : "#f5f5f5"};color:${ok ? "#22a355" : "#999"};border:1px solid ${ok ? "#22a355" : "#ddd"}">
+        ${ok ? "RECEIVED" : "MISSING"}
+      </span>
+    </td>
+  </tr>`;
+
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
 body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
-.wrap{max-width:620px;margin:0 auto;background:white;border:2px solid #1a1a1a;box-shadow:4px 4px 0 #1a1a1a}
-.hdr{background:#1a1a1a;padding:24px 28px}.hdr h1{color:white;margin:0;font-size:20px}
-.hdr p{color:#aaa;margin:4px 0 0;font-size:12px}
+.wrap{max-width:640px;margin:0 auto;background:white;border:2px solid #1a1a1a;box-shadow:4px 4px 0 #1a1a1a}
+.hdr{background:#1a1a1a;padding:24px 28px}
+.hdr h1{color:white;margin:0;font-size:22px;letter-spacing:-.3px}
+.hdr p{color:#aaa;margin:6px 0 0;font-size:13px}
 .body{padding:28px}
+.checklist-wrap{border:2px solid #1a1a1a;border-radius:3px;overflow:hidden;margin-bottom:24px;box-shadow:3px 3px 0 #1a1a1a}
+.checklist-hdr{background:#1a1a1a;padding:12px 18px;display:flex;align-items:center;gap:10px}
+.checklist-hdr span{color:white;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.checklist-table{width:100%;border-collapse:collapse}
+.checklist-table tr{border-bottom:1px solid #f0f0f0}
+.checklist-table tr:last-child{border-bottom:none}
+.checklist-table tr:nth-child(even){background:#fafafa}
 .pdf-note{background:#f0f6ff;border:1.5px solid #4a90e2;border-radius:2px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#333}
 .sec{margin-bottom:20px;border:1.5px solid #ddd;border-radius:2px}
 .sec-hdr{background:#f5f3ef;padding:8px 14px;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#555;border-bottom:1px solid #ddd}
-.sec-body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
+.sec-body{padding:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
 .f .lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:2px}
 .f .val{font-size:14px;color:#222}
 .badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700}
@@ -43,33 +87,55 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
 .ftr{background:#f5f3ef;border-top:1px solid #ddd;padding:16px 28px;font-size:11px;color:#888;text-align:center}
 </style></head><body>
 <div class="wrap">
-<div class="hdr"><h1>🚛 New Carrier: ${name}</h1><p>Simon Express Onboarding — ${today}</p></div>
-<div class="body">
-<div class="pdf-note">📎 <strong>Two PDFs attached:</strong> (1) Onboarding Packet — carrier profile, workers comp & signed agreement &nbsp;|&nbsp; (2) Supporting Documents — all uploaded files, processed and compressed</div>
 
-<div class="sec"><div class="sec-hdr">Company</div><div class="sec-body"><div class="grid">
+<div class="hdr">
+  <h1>🚛 New Carrier Onboarding</h1>
+  <p>${name} &nbsp;·&nbsp; MC# ${mc} &nbsp;·&nbsp; ${today}</p>
+</div>
+
+<div class="body">
+
+<!-- ── DOCUMENT CHECKLIST ── -->
+<div class="checklist-wrap">
+  <div class="checklist-hdr">
+    <span>📋 Document Status</span>
+  </div>
+  <table class="checklist-table">
+    ${checkRow(agreementSigned, "Carrier Agreement Signed", agreementSigned ? `Signed by ${sig.signerName as string}${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""} &nbsp;·&nbsp; IP: ${ipAddress}` : "Not signed")}
+    ${checkRow(wcOk, wcLabel, !wcOk ? "Workers comp documentation missing" : undefined)}
+    ${checkRow(w9Ok, w9Label, !w9Ok ? "W-9 not provided" : undefined)}
+    ${checkRow(coiOk, coiLabel, !coiOk ? "Certificate of insurance not received" : undefined)}
+  </table>
+</div>
+
+<div class="pdf-note">📎 <strong>Two PDFs attached:</strong> (1) Onboarding Packet — carrier profile, workers comp form &amp; signed agreement &nbsp;|&nbsp; (2) Supporting Documents — uploaded files, processed &amp; compressed</div>
+
+<!-- ── COMPANY INFO ── -->
+<div class="sec"><div class="sec-hdr">Company Information</div><div class="sec-body"><div class="grid">
 <div class="f"><div class="lbl">Legal Name</div><div class="val">${name}</div></div>
 <div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
 <div class="f"><div class="lbl">MC #</div><div class="val">${mc}</div></div>
 <div class="f"><div class="lbl">DOT #</div><div class="val">${dot}</div></div>
-<div class="f"><div class="lbl">EIN</div><div class="val">${(companyData?.ein as string) || "—"}</div></div>
+<div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(companyData?.ein as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Trucks / Trailers</div><div class="val">${(companyData?.truckCount as string) || "—"} / ${(companyData?.trailerCount as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
 <div class="f"><div class="lbl">Phone</div><div class="val">${(companyData?.phone as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Email</div><div class="val">${(companyData?.email as string) || "—"}</div></div>
-<div class="f"><div class="lbl">Contact</div><div class="val">${(companyData?.contactName as string) || "—"}</div></div>
+<div class="f"><div class="lbl">Primary Contact</div><div class="val">${(companyData?.contactName as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Quick Pay</div><div class="val">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
 <div class="f"><div class="lbl">Factoring</div><div class="val">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
 </div></div></div>
 
-<div class="sec"><div class="sec-hdr">Documents & Agreement</div><div class="sec-body"><div class="grid">
-<div class="f"><div class="lbl">Workers Comp</div><div class="val">${(wcData as Record<string, unknown>)?.hasWC ? "✓ Insurance on file" : "Exemption signed"}</div></div>
-<div class="f"><div class="lbl">Signed By</div><div class="val">${(sigData as Record<string, unknown>)?.signerName || "—"}, ${(sigData as Record<string, unknown>)?.signerTitle || ""}</div></div>
-<div class="f"><div class="lbl">Signed Date</div><div class="val">${today}</div></div>
+<!-- ── SIGNATURE ── -->
+<div class="sec"><div class="sec-hdr">Agreement &amp; Signature</div><div class="sec-body"><div class="grid">
+<div class="f"><div class="lbl">Signed By</div><div class="val">${sig.signerName as string || "—"}</div></div>
+<div class="f"><div class="lbl">Title</div><div class="val">${sig.signerTitle as string || "—"}</div></div>
+<div class="f"><div class="lbl">Date Signed</div><div class="val">${today}</div></div>
 <div class="f"><div class="lbl">IP Address</div><div class="val" style="font-family:monospace;font-size:12px">${ipAddress}</div></div>
 </div></div></div>
+
 </div>
-<div class="ftr">Simon Express Logistics LLC · PO Box 1582, Riverton, UT 84065 · 801-260-7010 · MC# 1003278</div>
+<div class="ftr">Simon Express Logistics LLC &nbsp;·&nbsp; PO Box 1582, Riverton, UT 84065 &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; MC# 1003278</div>
 </div></body></html>`;
 }
 
