@@ -581,7 +581,19 @@ async function buildAgreementPages(
   page.drawText("This electronic signature is legally binding under the Electronic Signatures in Global and National Commerce Act (E-SIGN Act, 15 U.S.C. § 7001 et seq.).", {
     x: MARGIN, y, size: 7, font: fonts.regular, color: GRAY,
   });
-}
+  y -= 16;
+
+  // Red signature attestation note — only shown when IP address is available
+  if (data.ipAddress && String(data.ipAddress) !== "Unknown") {
+    const signerName = sanitize(String((sig.signerName as string) || "Unknown Signer"));
+    const ipAddr = sanitize(String(data.ipAddress));
+    const redNote = `This document was electronically signed by "${signerName}" at "${carrierName}" from IP Address ${ipAddr}.`;
+    const redLines = wrapText(redNote, fonts.bold, 8, CONTENT_WIDTH);
+    for (const line of redLines) {
+      page.drawText(line, { x: MARGIN, y, size: 8, font: fonts.bold, color: RED });
+      y -= 11;
+    }
+  }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN EXPORT: generateOnboardingPDF
