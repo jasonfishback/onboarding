@@ -42,12 +42,12 @@ export const SketchInput = ({
   required?: boolean;
   type?: string;
 }) => (
-  <div style={{ marginBottom: 16 }}>
+  <div style={{ marginBottom: 12 }}>
     <label
       style={{
         display: "block",
         fontFamily: "DM Sans",
-        fontSize: 17,
+        fontSize: 13,
         fontWeight: 700,
         marginBottom: 4,
         color: DARK,
@@ -66,7 +66,7 @@ export const SketchInput = ({
       placeholder={placeholder}
       style={{
         width: "100%",
-        padding: "9px 12px",
+        padding: "8px 10px",
         border: "2px solid " + DARK,
         borderRadius: 2,
         fontFamily: "DM Sans",
@@ -89,12 +89,12 @@ export const SketchTextarea = ({
   onChange: (v: string) => void;
   rows?: number;
 }) => (
-  <div style={{ marginBottom: 16 }}>
+  <div style={{ marginBottom: 12 }}>
     <label
       style={{
         display: "block",
         fontFamily: "DM Sans",
-        fontSize: 17,
+        fontSize: 13,
         fontWeight: 700,
         marginBottom: 4,
         color: DARK,
@@ -108,7 +108,7 @@ export const SketchTextarea = ({
       rows={rows}
       style={{
         width: "100%",
-        padding: "9px 12px",
+        padding: "8px 10px",
         border: "2px solid " + DARK,
         borderRadius: 2,
         fontFamily: "DM Sans",
@@ -131,12 +131,12 @@ export const SketchSelect = ({
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
 }) => (
-  <div style={{ marginBottom: 16 }}>
+  <div style={{ marginBottom: 12 }}>
     <label
       style={{
         display: "block",
         fontFamily: "DM Sans",
-        fontSize: 17,
+        fontSize: 13,
         fontWeight: 700,
         marginBottom: 4,
         color: DARK,
@@ -149,7 +149,7 @@ export const SketchSelect = ({
       onChange={(e) => onChange(e.target.value)}
       style={{
         width: "100%",
-        padding: "9px 12px",
+        padding: "8px 10px",
         border: "2px solid " + DARK,
         borderRadius: 2,
         fontFamily: "DM Sans",

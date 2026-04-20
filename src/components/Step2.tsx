@@ -223,11 +223,11 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           </div>
           <SketchInput label="MC Number" value={form.mc} onChange={set("mc")} placeholder="MC123456" required />
           <SketchInput label="DOT Number" value={form.dot} onChange={set("dot")} placeholder="9876543" />
-          <SketchInput label="EIN / Tax ID" value={form.ein} onChange={set("ein")} placeholder="XX-XXXXXXX" required />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-            <SketchInput label="# of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required />
-            <SketchInput label="# of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required />
+          <div style={{ gridColumn: "1/-1" }}>
+            <SketchInput label="EIN / Tax ID" value={form.ein} onChange={set("ein")} placeholder="XX-XXXXXXX" required />
           </div>
+          <SketchInput label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required />
+          <SketchInput label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required />
         </div>
 
         <div style={{ marginBottom: 4 }}>
@@ -277,7 +277,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
 
       {/* Address */}
       <Box style={{ padding: 24, marginBottom: 16 }}>
-        <div style={{ fontFamily: "DM Sans", fontSize: 20, fontWeight: 700, marginBottom: 16, paddingBottom: 8, borderBottom: "1.5px dashed #ddd" }}>
+        <div style={{ fontFamily: "DM Sans", fontSize: 15, fontWeight: 700, marginBottom: 12, paddingBottom: 8, borderBottom: "1.5px dashed #ddd" }}>
           Address
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
@@ -318,7 +318,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
 
       {/* Primary Contact */}
       <Box style={{ padding: 24, marginBottom: 16 }}>
-        <div style={{ fontFamily: "DM Sans", fontSize: 20, fontWeight: 700, marginBottom: 16, paddingBottom: 8, borderBottom: "1.5px dashed #ddd" }}>
+        <div style={{ fontFamily: "DM Sans", fontSize: 15, fontWeight: 700, marginBottom: 12, paddingBottom: 8, borderBottom: "1.5px dashed #ddd" }}>
           Primary Contact
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
