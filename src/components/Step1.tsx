@@ -278,7 +278,7 @@ export default function Step1({ onNext }: Step1Props) {
                 `${result.address}, ${result.city}, ${result.state} ${result.zip}`,
               ],
               ["DOT #", result.dot],
-              ["MC #", result.mc],
+              ["MC #", result.mc || "DOT-only carrier (no MC#)"],
               ["Phone", result.phone],
               ["Email", result.email],
               ["Type", result.type],

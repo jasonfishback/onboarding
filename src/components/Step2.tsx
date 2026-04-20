@@ -125,8 +125,15 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         <div className="field-grid">
           <div className="full"><Field label="Legal Company Name" value={form.legalName} onChange={set("legalName")} required /></div>
           <div className="full"><Field label="DBA / Trade Name" value={form.dba} onChange={set("dba")} placeholder="If different from legal name" /></div>
-          <Field label="MC Number" value={form.mc} onChange={set("mc")} placeholder="MC123456" required inputMode="numeric" />
-          <Field label="DOT Number" value={form.dot} onChange={set("dot")} placeholder="9876543" inputMode="numeric" />
+          <Field label={`MC Number${!form.dot ? " *" : " (if applicable)"}`} value={form.mc} onChange={set("mc")} placeholder="MC123456" inputMode="numeric" />
+          <Field label={`DOT Number${!form.mc ? " *" : " (if applicable)"}`} value={form.dot} onChange={set("dot")} placeholder="9876543" inputMode="numeric" />
+        </div>
+        {!form.mc && !form.dot && (
+          <div style={{ fontSize: 12, color: "#CC1B1B", marginBottom: 10, marginTop: -4 }}>
+            ⚠ At least one of MC# or DOT# is required.
+          </div>
+        )}
+        <div className="field-grid">
           <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={set("ein")} placeholder="XX-XXXXXXX" required inputMode="numeric" /></div>
           <Field label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required inputMode="numeric" />
           <Field label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required inputMode="numeric" />
@@ -241,7 +248,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn onClick={() => onNext({ ...form, dispatch, billing, mailing: diffMailing ? mailing : null, usesFactoring, factoringName, wantsQuickPay })}
-          disabled={!form.legalName || !form.mc || !form.ein}>
+          disabled={!form.legalName || (!form.mc && !form.dot) || !form.ein}>
           Save & Continue →
         </Btn>
       </div>

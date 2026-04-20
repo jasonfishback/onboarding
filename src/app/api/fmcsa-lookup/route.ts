@@ -31,6 +31,35 @@ export async function GET(req: NextRequest) {
 
     if (!c) return NextResponse.json({ carrier: null });
 
+    // Build MC# from prefix+docketNumber, or fall back to value for MC lookups
+    let mc = c.prefix && c.docketNumber
+      ? `${c.prefix}${c.docketNumber}`
+      : mode === "MC" ? `MC${value}` : "";
+
+    // For DOT lookups where MC# wasn't returned directly,
+    // try the carrier's operating authority endpoint
+    if (mode === "DOT" && !mc && c.dotNumber) {
+      try {
+        const authRes = await fetch(
+          `https://mobile.fmcsa.dot.gov/qc/services/carriers/${c.dotNumber}/authority?webKey=${key}`,
+          { signal: AbortSignal.timeout(6000) }
+        );
+        if (authRes.ok) {
+          const authJson = await authRes.json();
+          const auths = authJson?.content;
+          if (Array.isArray(auths) && auths.length > 0) {
+            // Find first MC authority
+            const mcAuth = auths.find((a: Record<string, string>) => a.prefix === "MC") || auths[0];
+            if (mcAuth?.prefix && mcAuth?.docketNumber) {
+              mc = `${mcAuth.prefix}${mcAuth.docketNumber}`;
+            }
+          }
+        }
+      } catch {
+        // Non-critical — DOT-only carriers may not have an MC
+      }
+    }
+
     return NextResponse.json({
       carrier: {
         name: c.legalName || c.dbaName || "",
@@ -42,12 +71,7 @@ export async function GET(req: NextRequest) {
         phone: c.telephone || "",
         email: c.emailAddress || "",
         dot: String(c.dotNumber || ""),
-        mc:
-          c.prefix && c.docketNumber
-            ? `${c.prefix}${c.docketNumber}`
-            : mode === "MC"
-            ? `MC${value}`
-            : "",
+        mc,
         type: "Motor Carrier",
         status: c.allowedToOperate === "Y" ? "Active" : "Inactive",
         source: "fmcsa",
