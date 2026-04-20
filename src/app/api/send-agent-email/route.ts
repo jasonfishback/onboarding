@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   </ul>
   <p>Please email the COI to <a href="mailto:dispatch@simonexpress.com">dispatch@simonexpress.com</a> or fax to <strong>801-663-7537</strong>.</p>
   <p>Questions? Call <strong>801-260-7010</strong>.</p>
-  <p>Thank you,<br><strong>Jason Fishback</strong><br>Director of Operations, Simon Express Logistics LLC</p>
+  <p>Thank you,<br><strong>Simon Express Logistics LLC</strong><br><a href="mailto:dispatch@simonexpress.com">dispatch@simonexpress.com</a> &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; Fax: 801-663-7537</p>
 </body>`,
     });
 
