@@ -504,7 +504,15 @@ async function buildAgreementPages(
   page.drawText("By:", { x: leftX, y, size: 9, font: fonts.regular, color: GRAY });
   page.drawText("Jason Fishback", { x: leftX + 24, y, size: 11, font: fonts.bold, color: BLACK });
   page.drawText("By:", { x: rightX, y, size: 9, font: fonts.regular, color: GRAY });
-  y -= 4;
+  y -= 13;
+
+  // Broker address directly under name
+  page.drawText("Simon Express Logistics LLC", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
+  y -= 11;
+  page.drawText("PO Box 1582, Riverton, UT 84065", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
+  y -= 11;
+  page.drawText("Phone: 801-260-7010  |  Fax: 801-663-7537", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
+  y -= 8;
 
   // Carrier signature — embed drawn image or large typed name
   const agreementSigImage = sig.signatureImage as string | undefined;
@@ -533,18 +541,15 @@ async function buildAgreementPages(
   page.drawLine({ start: { x: rightX, y }, end: { x: rightX + 220, y }, thickness: 0.75, color: BLACK });
   y -= 14;
 
-  page.drawText("Title: Director of Operations", { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
+  page.drawText("Title: VP of Operations", { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
   page.drawText(`Printed: ${String(sig.signerName || "________________________")}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
   y -= 14;
   page.drawText(`Date: ${today}`, { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
   page.drawText(`Date: ${today}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
   y -= 14;
-  page.drawText("Address: PO Box 1582, Riverton, UT 84065", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
   if (sig.signerTitle) {
     page.drawText(`Title: ${String(sig.signerTitle)}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
   }
-  y -= 14;
-  page.drawText("Phone: 801-260-7010  |  Fax: 801-663-7537", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
   y -= 20;
 
   // Legal notice
