@@ -108,13 +108,9 @@ export async function generateW9PDF(w9Data: Record<string, string>, companyData:
   // ── LINE 5: Address ───────────────────────────────────────────────────────
   y -= classifBoxH;
   const halfW = (W - M * 2) * 0.65;
-  rect(page, M, y - 22, halfW, 22, WHITE, BLACK, 0.75);
-  rect(page, M + halfW, y - 22, (W - M * 2) - halfW, 22, LIGHT, BLACK, 0.75);
+  rect(page, M, y - 22, W - M * 2, 22, WHITE, BLACK, 0.75);
   txt(page, "5  Address (number, street, and apt. or suite no.)  See instructions.", M + 2, y - 8, 7, regular, DARK);
   txt(page, String(w9Data.address || companyData.address || ""), M + 4, y - 20, 10, bold, BLACK);
-  txt(page, "Requester's name and address (optional):", M + halfW + 3, y - 8, 7, regular, DARK);
-  txt(page, "Simon Express Logistics LLC", M + halfW + 3, y - 17, 8, bold, BLACK);
-  txt(page, "PO Box 1582, Riverton, UT 84065", M + halfW + 3, y - 26, 8, regular, BLACK);
 
   // ── LINE 6: City/State/ZIP ────────────────────────────────────────────────
   y -= 22;
