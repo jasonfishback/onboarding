@@ -7,6 +7,7 @@ interface Step3Props {
   onNext: (data: Record<string, unknown>) => void;
   onBack: () => void;
   companyName: string;
+  carrierEmail?: string;
 }
 
 // Generate a session ID once per browser session
@@ -91,7 +92,7 @@ function UploadBox({
   );
 }
 
-export default function Step3({ onNext, onBack, companyName }: Step3Props) {
+export default function Step3({ onNext, onBack, companyName, carrierEmail }: Step3Props) {
   const [sessionId] = useState(() => {
     if (typeof window !== "undefined") return getSessionId();
     return crypto.randomUUID();
@@ -146,7 +147,7 @@ export default function Step3({ onNext, onBack, companyName }: Step3Props) {
       await fetch("/api/send-agent-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentEmail, companyName }),
+        body: JSON.stringify({ agentEmail, companyName, carrierEmail }),
       });
       setEmailSent(true);
     } catch {

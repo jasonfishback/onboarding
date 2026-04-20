@@ -9,16 +9,20 @@ export async function POST(req: NextRequest) {
     if (!resendKey) return NextResponse.json({ success: false, error: "Email not configured" }, { status: 500 });
 
     const resend = new Resend(resendKey);
-    const { agentEmail, companyName } = await req.json();
+    const { agentEmail, companyName, carrierEmail } = await req.json();
 
     if (!agentEmail) return NextResponse.json({ error: "No agent email" }, { status: 400 });
 
     const FROM = process.env.FROM_EMAIL || "onboarding@simonexpress.com";
 
+    // CC both dispatch and the carrier's own email (if provided)
+    const ccAddresses = ["dispatch@simonexpress.com"];
+    if (carrierEmail && carrierEmail !== agentEmail) ccAddresses.push(carrierEmail);
+
     await resend.emails.send({
       from: FROM,
       to: [agentEmail],
-      cc: ["dispatch@simonexpress.com"],
+      cc: ccAddresses,
       subject: `${companyName || "Carrier"} — Insurance Certificate Request`,
       html: `
 <body style="font-family:Arial,sans-serif;max-width:600px;margin:40px auto;color:#333">
