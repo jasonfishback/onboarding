@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { generateOnboardingPDF } from "@/lib/generatePdf";
+import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
 import { getSessionFiles } from "@/app/api/upload/route";
 
@@ -263,6 +264,21 @@ export async function POST(req: NextRequest) {
         content: Buffer.from(packetBytes!).toString("base64"),
       },
     ];
+
+    // ── 2b. Generate W-9 PDF if carrier filled it out online ──
+    const w9Form = (docsData?.w9Form || {}) as Record<string, string>;
+    if (w9Form.name || w9Form.ein) {
+      try {
+        const w9Bytes = await generateW9PDF(w9Form, companyData as Record<string, unknown>, sigData as Record<string, unknown>);
+        attachments.push({
+          filename: `W9_${safeName}.pdf`,
+          content: Buffer.from(w9Bytes).toString("base64"),
+        });
+        console.log("[submit] W-9 PDF generated:", w9Bytes.length, "bytes");
+      } catch (w9Err) {
+        console.error("[submit] W-9 PDF generation failed (non-critical):", String(w9Err));
+      }
+    }
 
     if (sessionId) {
       const sessionFiles = getSessionFiles(sessionId);
