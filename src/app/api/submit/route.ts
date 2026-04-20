@@ -140,7 +140,7 @@ ${geoInfo.proxy && geoInfo.proxy !== "No" ? `<div class="f" style="grid-column:1
 </div></div></div>
 
 </div>
-<div class="ftr">Simon Express Logistics LLC &nbsp;·&nbsp; PO Box 1582, Riverton, UT 84065 &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; MC# 1003278</div>
+<div class="ftr">Simon Express Logistics LLC &nbsp;·&nbsp; PO Box 1582, Riverton, UT 84065 &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; MC# 077997-B &nbsp;·&nbsp; DOT# 3001453</div>
 </div></body></html>`;
 }
 
@@ -165,7 +165,7 @@ Email: <a href="mailto:dispatch@simonexpress.com">dispatch@simonexpress.com</a><
 Fax: 801-663-7537
 </div>
 </div>
-<div class="ftr">Simon Express Logistics LLC · PO Box 1582, Riverton, UT 84065 · MC# 1003278</div>
+<div class="ftr">Simon Express Logistics LLC · PO Box 1582, Riverton, UT 84065 · MC# 077997-B &nbsp;·&nbsp; DOT# 3001453</div>
 </div></body></html>`;
 }
 

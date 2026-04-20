@@ -34,7 +34,7 @@ function addPage(doc: PDFDocument, fonts: Fonts, pageNum: number, totalPages?: n
 
   // Footer
   page.drawLine({ start: { x: MARGIN, y: 30 }, end: { x: PAGE_WIDTH - MARGIN, y: 30 }, thickness: 0.5, color: LIGHT_GRAY });
-  page.drawText("Simon Express Logistics LLC  ·  PO Box 1582, Riverton, UT 84065  ·  801-260-7010  ·  MC# 1003278", {
+  page.drawText("Simon Express Logistics LLC  ·  PO Box 1582, Riverton, UT 84065  ·  801-260-7010  ·  MC# 077997-B  ·  DOT# 3001453", {
     x: MARGIN, y: 16, size: 7, font: fonts.regular, color: GRAY,
   });
   if (totalPages) {
