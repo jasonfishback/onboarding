@@ -112,6 +112,33 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
   <p>${name} &nbsp;·&nbsp; MC# ${mc} &nbsp;·&nbsp; ${today}</p>
 </div>
 
+${(() => {
+  if (!ipAddress) return "";
+  const isUSA = !geoInfo.countryCode || geoInfo.countryCode === "US";
+  const location = [geoInfo.city, geoInfo.region, geoInfo.country].filter(Boolean).join(", ");
+  if (!isUSA) {
+    return `<div style="background:#CC1B1B;padding:16px 24px;border-bottom:3px solid #8b0000">
+  <div style="font-size:22px;font-weight:900;color:white;letter-spacing:1px;margin-bottom:6px">
+    🚩🚩🚩 &nbsp;NOT IN USA!!! &nbsp;🚩🚩🚩
+  </div>
+  <div style="color:#ffe0e0;font-size:14px;font-weight:700;line-height:1.8">
+    IP: <span style="color:white">${ipAddress}</span> &nbsp;·&nbsp;
+    Location: <span style="color:white">${location || "Unknown"}</span> &nbsp;·&nbsp;
+    ISP: <span style="color:white">${geoInfo.isp || "Unknown"}</span>
+  </div>
+</div>`;
+  }
+  return `<div style="background:#1a1a1a;padding:10px 24px;border-bottom:2px solid #333">
+  <div style="color:#CC1B1B;font-size:13px;font-weight:700;line-height:1.8">
+    🌐 &nbsp;
+    <strong style="color:#ff6b6b">IP: ${ipAddress}</strong>
+    ${location ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">${location}</strong>` : ""}
+    ${geoInfo.isp ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">ISP: ${geoInfo.isp}</strong>` : ""}
+    ${geoInfo.proxy && geoInfo.proxy !== "No" ? ` &nbsp;·&nbsp; <strong style="color:#ffaa00">⚠ PROXY/VPN DETECTED</strong>` : ""}
+  </div>
+</div>`;
+})()}
+
 <div class="body">
 
 <!-- ── DOCUMENT CHECKLIST ── -->
