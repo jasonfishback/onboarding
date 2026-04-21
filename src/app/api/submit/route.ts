@@ -350,7 +350,7 @@ export async function POST(req: NextRequest) {
     const htmlBody = buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo });
     await resend.emails.send({
       from: FROM,
-      to: ["dispatch@simonexpress.com"],
+      to: ["setup@simonexpress.com"],
       subject: `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`,
       html: htmlBody,
       attachments,
