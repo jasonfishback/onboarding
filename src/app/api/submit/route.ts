@@ -134,7 +134,7 @@ ${(() => {
     <strong style="color:#ff6b6b">IP: ${ipAddress}</strong>
     ${location ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">${location}</strong>` : ""}
     ${geoInfo.isp ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">ISP: ${geoInfo.isp}</strong>` : ""}
-    ${geoInfo.proxy && geoInfo.proxy !== "No" ? ` &nbsp;·&nbsp; <strong style="color:#ffaa00">⚠ PROXY/VPN DETECTED</strong>` : ""}
+    ${geoInfo.proxy && geoInfo.proxy !== "No" ? ` &nbsp;·&nbsp; <strong style="color:#ffaa00">🚩🚩🚩 PROXY/VPN DETECTED</strong>` : ""}
   </div>
 </div>`;
 })()}
