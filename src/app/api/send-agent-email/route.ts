@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const FROM = process.env.FROM_EMAIL || "onboarding@simonexpress.com";
 
     // CC both dispatch and the carrier's own email (if provided)
-    const ccAddresses = ["dispatch@simonexpress.com"];
+    const ccAddresses = ["setup@simonexpress.com"];
     if (carrierEmail && carrierEmail !== agentEmail) ccAddresses.push(carrierEmail);
 
     await resend.emails.send({
