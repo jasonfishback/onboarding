@@ -88,33 +88,29 @@ export async function generateW9PDF(
   if (dba) drawText(page, dba, 63, 150, 11, bold, BLACK);
 
   // ── Line 3a: Tax Classification checkboxes ─────────────────────────────────
-  // Checkbox rects are at pdfplumber y=180.2 (top), so center of box = y≈184
-  // Checkbox x positions from rects:
-  //   Individual/sole: x0=73
-  //   C corporation:   x0=180
-  //   S corporation:   x0=252
-  //   Partnership:     x0=324
-  //   Trust/estate:    x0=388.8
-  //   LLC:             x0=73, y0=193.5
-  //   Other:           x0=73, y0=230
   const cbMap: Record<string, { x: number; ty: number }> = {
     individual:  { x: 74,    ty: 181 },
     ccorp:       { x: 181,   ty: 181 },
     scorp:       { x: 253,   ty: 181 },
     partnership: { x: 325,   ty: 181 },
     trust:       { x: 389,   ty: 181 },
+    // All LLC variants map to the LLC checkbox row
     llc:         { x: 74,    ty: 194 },
+    llc_c:       { x: 74,    ty: 194 },
+    llc_s:       { x: 74,    ty: 194 },
+    llc_p:       { x: 74,    ty: 194 },
     other:       { x: 74,    ty: 230 },
   };
   const cb = cbMap[classif];
   if (cb) {
-    // Draw X inside the checkbox
     drawText(page, "X", cb.x + 1, cb.ty + 6, 7, bold, BLACK);
   }
 
-  // LLC type entry (after the dots at ~x=415, y=195)
-  if (classif === "llc" && llcType) {
-    drawText(page, llcType, 415, 199, 9, bold, BLACK);
+  // LLC type letter entry (C, S, or P) after the dots
+  const llcVariants: Record<string, string> = { llc_c: "C", llc_s: "S", llc_p: "P", llc: llcType };
+  const llcEntry = llcVariants[classif];
+  if (llcEntry) {
+    drawText(page, llcEntry, 415, 199, 9, bold, BLACK);
   }
 
   // ── Line 5: Address ────────────────────────────────────────────────────────
@@ -154,19 +150,19 @@ export async function generateW9PDF(
       const maxH = 24;
       const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
       page.drawImage(embeddedSig, {
-        x: 110,
-        y: py(595, sigDims.height),
+        x: 115,
+        y: py(591, sigDims.height),
         width: sigDims.width,
         height: sigDims.height,
       });
     } catch {
-      if (signer) drawText(page, signer, 110, 589, 12, bold, BLACK);
+      if (signer) drawText(page, signer, 115, 583, 12, bold, BLACK);
     }
   } else if (signer) {
-    drawText(page, signer, 110, 589, 12, bold, BLACK);
+    drawText(page, signer, 115, 583, 12, bold, BLACK);
   }
   // Date — right side of signature block
-  drawText(page, today, 415, 589, 10, reg, BLACK);
+  drawText(page, today, 415, 583, 10, reg, BLACK);
 
   // ── Electronic submission note ─────────────────────────────────────────────
   // Place just above "General Instructions" heading (pdfplumber y=609)
