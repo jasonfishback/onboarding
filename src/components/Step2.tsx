@@ -25,6 +25,13 @@ function formatPhone(raw: string): string {
   return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
 }
 
+// Validate email format
+function emailError(val: string): string {
+  if (!val) return "";
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+  return valid ? "" : "Enter a valid email address (e.g. name@domain.com)";
+}
+
 // Format ZIP — numeric only, max 5 digits
 function formatZip(raw: string): string {
   return raw.replace(/[^0-9]/g, "").slice(0, 5);
@@ -121,7 +128,7 @@ function ContactSection({ title, data, setData, primaryContact, showCopy }: {
         <Field label="Contact Name" value={data.name} onChange={v => setData(d => ({ ...d, name: v }))} required />
         <Field label="Title / Role" value={data.title} onChange={v => setData(d => ({ ...d, title: v }))} placeholder="Owner, Dispatch…" />
         <Field label="Phone" value={data.phone} onChange={v => setData(d => ({ ...d, phone: formatPhone(v) }))} required inputMode="tel" errorMsg={data.phone ? phoneError(data.phone) : undefined} />
-        <Field label="Email" value={data.email} onChange={v => setData(d => ({ ...d, email: v }))} required />
+        <Field label="Email" value={data.email} onChange={v => setData(d => ({ ...d, email: v }))} required errorMsg={data.email ? emailError(data.email) : undefined} />
       </div>
     </div>
   );
@@ -247,7 +254,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           <Field label="Contact Name" value={form.contactName} onChange={set("contactName")} required error={submitted && !form.contactName} />
           <Field label="Title / Role" value={form.contactTitle} onChange={set("contactTitle")} placeholder="Owner, Dispatch…" />
           <Field label="Phone" value={form.phone} onChange={v => set("phone")(formatPhone(v))} required inputMode="tel" error={submitted && !form.phone} errorMsg={submitted && form.phone ? phoneError(form.phone) : undefined} />
-          <Field label="Email" value={form.email} onChange={set("email")} required error={submitted && !form.email} />
+          <Field label="Email" value={form.email} onChange={set("email")} required error={submitted && !form.email} errorMsg={submitted && form.email ? emailError(form.email) : undefined} />
         </div>
       </div>
 
@@ -306,6 +313,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         if (!form.phone) missing.push("Phone");
         else if (phoneError(form.phone)) missing.push(phoneError(form.phone));
         if (!form.email) missing.push("Email");
+        else if (emailError(form.email)) missing.push(emailError(form.email));
         if (missing.length === 0) return null;
         return (
           <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
@@ -321,7 +329,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           const valid = !!form.legalName && (!!form.mc || !!form.dot) && !!form.ein &&
             !einError(form.ein) &&
             !!form.address && !!form.city && !!form.zip &&
-            !!form.contactName && !!form.phone && !phoneError(form.phone) && !!form.email;
+            !!form.contactName && !!form.phone && !phoneError(form.phone) && !!form.email && !emailError(form.email);
           if (!valid) return;
           onNext({ ...form, dispatch, billing, mailing: diffMailing ? mailing : null, usesFactoring, factoringName, wantsQuickPay });
         }}>
