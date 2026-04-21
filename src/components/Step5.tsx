@@ -17,6 +17,7 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
   const [typeSig, setTypeSig] = useState("");
   const [signerTitle, setSignerTitle] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasHeight = typeof window !== "undefined" && window.innerWidth <= 600 ? 200 : 110;
   const [drawing, setDrawing] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -237,8 +238,8 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
                   <canvas
                     ref={canvasRef}
                     width={640}
-                    height={110}
-                    style={{ border: "2px solid " + DARK, borderRadius: 2, background: "white", cursor: "crosshair", width: "100%", touchAction: "none" }}
+                    height={canvasHeight}
+                    style={{ border: "2px solid " + DARK, borderRadius: 2, background: "white", cursor: "crosshair", width: "100%", height: canvasHeight, touchAction: "none" }}
                     onMouseDown={startDraw}
                     onMouseMove={draw}
                     onMouseUp={() => setDrawing(false)}

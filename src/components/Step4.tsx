@@ -16,6 +16,7 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
   const [sigMode, setSigMode] = useState<"type" | "draw">("type");
   const [typeSig, setTypeSig] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasHeight = typeof window !== "undefined" && window.innerWidth <= 600 ? 200 : 110;
   const [drawing, setDrawing] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
   const wcInputRef = useRef<HTMLInputElement>(null);
@@ -226,8 +227,8 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
               <canvas
                 ref={canvasRef}
                 width={560}
-                height={110}
-                style={{ border: "2px solid " + DARK, borderRadius: 2, background: "white", cursor: "crosshair", width: "100%", touchAction: "none" }}
+                height={canvasHeight}
+                style={{ border: "2px solid " + DARK, borderRadius: 2, background: "white", cursor: "crosshair", width: "100%", height: canvasHeight, touchAction: "none" }}
                 onMouseDown={startDraw}
                 onMouseMove={draw}
                 onMouseUp={() => setDrawing(false)}
