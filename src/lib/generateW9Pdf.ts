@@ -118,60 +118,51 @@ export async function generateW9PDF(
   }
 
   // ── Line 5: Address ────────────────────────────────────────────────────────
-  // Label y=278.5, field runs ~289 to ~302
-  if (addr) drawText(page, addr, 63, 294, 11, bold, BLACK);
+  // Label y=278.5, blank input area runs ~290 to ~302 — place text at ~283 (just below label)
+  if (addr) drawText(page, addr, 63, 285, 11, bold, BLACK);
 
   // ── Line 6: City, State, ZIP ───────────────────────────────────────────────
-  // Label y=302.5, field runs ~313 to ~326
-  if (csz) drawText(page, csz, 63, 318, 11, bold, BLACK);
+  // Label y=302.5, blank input area runs ~314 to ~326 — place text at ~307
+  if (csz) drawText(page, csz, 63, 309, 11, bold, BLACK);
 
   // ── Part I: EIN ────────────────────────────────────────────────────────────
-  // EIN label at y=409.5, boxes at y=420-444
-  // From rects: x0=417.6, boxes are 14.4 wide each
-  // EIN format: XX-XXXXXXX  (2 digits dash 7 digits)
-  // Box centers: digits 0-1 at x≈418-432, dash, digits 2-8 at x≈460-562
   if (ein) {
-    const d1 = ein.slice(0, 2);  // first 2 digits
-    const d2 = ein.slice(2);     // remaining digits
-    // Place in the EIN cells - center of first group starts at x=418
+    const d1 = ein.slice(0, 2);
+    const d2 = ein.slice(2);
     if (d1) drawText(page, d1.split("").join("  "), 421, 434, 11, bold, BLACK);
     if (d2) drawText(page, d2.split("").join("  "), 462, 434, 11, bold, BLACK);
   }
 
   // ── Part II: Signature ─────────────────────────────────────────────────────
-  // Sign Here block: "Signature of U.S. person" label at y=582.1
-  // Signature line is at y≈595-600, x starts at 78
-  // Date label at y=590.5, x=385.6
+  // "Sign Here" block: sign line is at pdfplumber y≈590-600
+  // "Signature of U.S. person" label at y=582, date label at y=590, x=385
+  // Signature should sit just above the line at ~y=593
+  // Date at x=390, same y
   const signatureImage = String(sigData.signatureImage ?? "");
   if (signatureImage && signatureImage.startsWith("data:image/png;base64,")) {
     try {
       const base64Data = signatureImage.replace(/^data:image\/png;base64,/, "");
       const pngBytes = Buffer.from(base64Data, "base64");
       const embeddedSig = await doc.embedPng(pngBytes);
-      const maxW = 280;
-      const maxH = 36;
+      const maxW = 260;
+      const maxH = 30;
       const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
-      // Place signature image — signature line is at pdfplumber y≈600, pdf-lib y = H - 600
       page.drawImage(embeddedSig, {
         x: 78,
-        y: py(600) - sigDims.height + sigDims.height,
+        y: py(598, sigDims.height),
         width: sigDims.width,
         height: sigDims.height,
       });
     } catch {
-      // Fall back to typed name if image embed fails
-      if (signer) drawText(page, signer, 78, 594, 13, bold, BLUE);
+      if (signer) drawText(page, signer, 78, 596, 13, bold, BLUE);
     }
   } else if (signer) {
-    // Typed signature in blue bold
-    drawText(page, signer, 78, 594, 13, bold, BLUE);
+    drawText(page, signer, 78, 596, 13, bold, BLUE);
   }
-  // Date
-  drawText(page, today, 387, 594, 10, reg, BLACK);
+  // Date — same y-level as signature, right side
+  drawText(page, today, 390, 596, 10, reg, BLACK);
 
   // ── Electronic submission note ─────────────────────────────────────────────
-  // Place below the "General Instructions" section, near bottom of form area
-  // The General Instructions header is at y=609, so place note just above footer
   drawText(page, "* Electronically signed via Simon Express Logistics LLC carrier onboarding portal *", 60, 605, 6.5, reg, rgb(0.5, 0.5, 0.5));
 
   return doc.save();
