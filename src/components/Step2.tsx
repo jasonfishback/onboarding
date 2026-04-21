@@ -37,11 +37,29 @@ function formatEIN(raw: string): string {
   return digits.slice(0, 2) + "-" + digits.slice(2);
 }
 
+// Validate EIN — must be exactly 9 digits
+function einError(val: string): string {
+  const digits = val.replace(/[^0-9]/g, "");
+  if (!val) return "";
+  if (digits.length < 9) return "EIN must be 9 digits (XX-XXXXXXX)";
+  if (digits.length > 9) return "EIN must be exactly 9 digits";
+  return "";
+}
+
+// Validate phone — must be exactly 10 digits
+function phoneError(val: string): string {
+  const digits = val.replace(/[^0-9]/g, "");
+  if (!val) return "";
+  if (digits.length < 10) return "Phone must be 10 digits (XXX-XXX-XXXX)";
+  if (digits.length > 10) return "Phone must be exactly 10 digits";
+  return "";
+}
+
 // Simple field component using CSS classes
-function Field({ label, value, onChange, placeholder, required, type = "text", inputMode, error }: {
+function Field({ label, value, onChange, placeholder, required, type = "text", inputMode, error, errorMsg }: {
   label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; required?: boolean; type?: string;
-  inputMode?: "numeric" | "tel" | "email" | "text"; error?: boolean;
+  inputMode?: "numeric" | "tel" | "email" | "text"; error?: boolean; errorMsg?: string;
 }) {
   return (
     <div>
@@ -55,8 +73,13 @@ function Field({ label, value, onChange, placeholder, required, type = "text", i
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         className="field-input"
-        style={error ? { borderColor: "#CC1B1B", background: "#fff5f5" } : undefined}
+        style={error || errorMsg ? { borderColor: "#CC1B1B", background: "#fff5f5" } : undefined}
       />
+      {errorMsg && (
+        <div style={{ color: "#CC1B1B", fontSize: 11, fontWeight: 600, marginTop: 3 }}>
+          ⚠ {errorMsg}
+        </div>
+      )}
     </div>
   );
 }
@@ -97,7 +120,7 @@ function ContactSection({ title, data, setData, primaryContact, showCopy }: {
       <div className="field-grid">
         <Field label="Contact Name" value={data.name} onChange={v => setData(d => ({ ...d, name: v }))} required />
         <Field label="Title / Role" value={data.title} onChange={v => setData(d => ({ ...d, title: v }))} placeholder="Owner, Dispatch…" />
-        <Field label="Phone" value={data.phone} onChange={v => setData(d => ({ ...d, phone: formatPhone(v) }))} required inputMode="tel" />
+        <Field label="Phone" value={data.phone} onChange={v => setData(d => ({ ...d, phone: formatPhone(v) }))} required inputMode="tel" errorMsg={data.phone ? phoneError(data.phone) : undefined} />
         <Field label="Email" value={data.email} onChange={v => setData(d => ({ ...d, email: v }))} required />
       </div>
     </div>
@@ -158,7 +181,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           </div>
         )}
         <div className="field-grid">
-          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={v => set("ein")(formatEIN(v))} placeholder="XX-XXXXXXX" required inputMode="numeric" error={submitted && !form.ein} /></div>
+          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={v => set("ein")(formatEIN(v))} placeholder="XX-XXXXXXX" required inputMode="numeric" error={submitted && !form.ein} errorMsg={submitted && form.ein ? einError(form.ein) : undefined} /></div>
           <Field label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required inputMode="numeric" error={submitted && !form.truckCount} />
           <Field label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required inputMode="numeric" error={submitted && !form.trailerCount} />
         </div>
@@ -223,7 +246,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         <div className="field-grid">
           <Field label="Contact Name" value={form.contactName} onChange={set("contactName")} required error={submitted && !form.contactName} />
           <Field label="Title / Role" value={form.contactTitle} onChange={set("contactTitle")} placeholder="Owner, Dispatch…" />
-          <Field label="Phone" value={form.phone} onChange={v => set("phone")(formatPhone(v))} required inputMode="tel" error={submitted && !form.phone} />
+          <Field label="Phone" value={form.phone} onChange={v => set("phone")(formatPhone(v))} required inputMode="tel" error={submitted && !form.phone} errorMsg={submitted && form.phone ? phoneError(form.phone) : undefined} />
           <Field label="Email" value={form.email} onChange={set("email")} required error={submitted && !form.email} />
         </div>
       </div>
@@ -275,11 +298,13 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         if (!form.legalName) missing.push("Legal Company Name");
         if (!form.mc && !form.dot) missing.push("MC# or DOT#");
         if (!form.ein) missing.push("EIN / Tax ID");
+        else if (einError(form.ein)) missing.push(einError(form.ein));
         if (!form.address) missing.push("Street Address");
         if (!form.city) missing.push("City");
         if (!form.zip) missing.push("ZIP Code");
         if (!form.contactName) missing.push("Contact Name");
         if (!form.phone) missing.push("Phone");
+        else if (phoneError(form.phone)) missing.push(phoneError(form.phone));
         if (!form.email) missing.push("Email");
         if (missing.length === 0) return null;
         return (
@@ -294,8 +319,9 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         <Btn onClick={() => {
           setSubmitted(true);
           const valid = !!form.legalName && (!!form.mc || !!form.dot) && !!form.ein &&
+            !einError(form.ein) &&
             !!form.address && !!form.city && !!form.zip &&
-            !!form.contactName && !!form.phone && !!form.email;
+            !!form.contactName && !!form.phone && !phoneError(form.phone) && !!form.email;
           if (!valid) return;
           onNext({ ...form, dispatch, billing, mailing: diffMailing ? mailing : null, usesFactoring, factoringName, wantsQuickPay });
         }}>
