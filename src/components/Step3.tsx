@@ -139,7 +139,7 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail, compa
     city:    String(companyData?.city ?? ""),
     state:   String(companyData?.state ?? ""),
     zip:     String(companyData?.zip ?? ""),
-    classif: "individual",
+    classif: "",
   });
   const [agentEmail, setAgentEmail] = useState("");
   const [emailSent, setEmailSent] = useState(false);
@@ -194,7 +194,7 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail, compa
     }
   };
 
-  const w9Complete = uploads["w9"] || (w9Mode === "fill" && w9Form.name && w9Form.ssn);
+  const w9Complete = uploads["w9"] || (w9Mode === "fill" && w9Form.name && w9Form.ssn && w9Form.classif);
   const coiComplete = uploads["ins"] || emailSent;
 
   return (
@@ -248,13 +248,37 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail, compa
                 placeholder="XX-XXXXXXX"
                 required
               />
-              <SketchSelect label="Federal Tax Classification" value={w9Form.classif} onChange={setW9("classif")} options={[
-                { value: "individual", label: "Individual / Sole Proprietor" },
-                { value: "llc_s", label: "LLC (S-Corp)" },
-                { value: "llc_c", label: "LLC (C-Corp)" },
-                { value: "corp", label: "C Corporation" },
-                { value: "partner", label: "Partnership" },
-              ]} />
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, marginBottom: 4, color: DARK }}>
+                  Federal Tax Classification <span style={{ color: RED }}>*</span>
+                </label>
+                <select
+                  value={w9Form.classif}
+                  onChange={e => setW9("classif")(e.target.value)}
+                  style={{
+                    width: "100%", padding: "8px 10px", borderRadius: 2, fontFamily: "DM Sans", fontSize: 14,
+                    border: "2px solid " + (!w9Form.classif ? "#CC1B1B" : DARK),
+                    background: !w9Form.classif ? "#fff5f5" : "#fafaf8",
+                    color: !w9Form.classif ? "#CC1B1B" : DARK,
+                  }}
+                >
+                  <option value="" disabled>— Select tax classification —</option>
+                  <option value="individual">Individual / Sole Proprietor</option>
+                  <option value="llc_c">LLC (C-Corp)</option>
+                  <option value="llc_s">LLC (S-Corp)</option>
+                  <option value="llc_p">LLC (Partnership)</option>
+                  <option value="ccorp">C Corporation</option>
+                  <option value="scorp">S Corporation</option>
+                  <option value="partner">Partnership</option>
+                  <option value="trust">Trust / Estate</option>
+                  <option value="other">Other</option>
+                </select>
+                {!w9Form.classif && (
+                  <div style={{ color: "#CC1B1B", fontSize: 11, fontWeight: 600, marginTop: 3 }}>
+                    ⚠ Please select your federal tax classification
+                  </div>
+                )}
+              </div>
               <div style={{ gridColumn: "1/-1" }}>
                 <SketchInput label="Street Address or PO Box" value={w9Form.address} onChange={setW9("address")} />
               </div>
@@ -321,7 +345,10 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail, compa
       {(!w9Complete || !coiComplete) && (
         <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
           Required to continue:{" "}
-          {[!w9Complete && "W-9 (upload or fill out online)", !coiComplete && "Certificate of Insurance (upload or send to agent)"].filter(Boolean).join(", ")}
+          {[
+            !w9Complete && "W-9 (upload or fill out online" + (w9Mode === "fill" && !w9Form.classif ? " — select tax classification" : "") + ")",
+            !coiComplete && "Certificate of Insurance (upload or send to agent)"
+          ].filter(Boolean).join(", ")}
         </div>
       )}
 
