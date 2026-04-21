@@ -127,50 +127,50 @@ export async function generateW9PDF(
 
   // ── Part I: EIN ────────────────────────────────────────────────────────────
   // EIN boxes: x0=417.6, each cell is 14.4px wide
-  // Group 1 (2 digits): cells at 417.6, 432.0  → centers at 424, 438
-  // Dash at ~446
-  // Group 2 (7 digits): cells at 460.8, 475.2, 489.6, 504.0, 518.4, 532.8, 547.2
-  //                      → centers at 468, 482, 497, 511, 525, 540, 554
+  // Group 1 (2 digits): centers at ~425, 440
+  // Group 2 (7 digits): centers at ~462, 476, 491, 505, 519, 534, 548
   if (ein) {
     const digits = ein.replace(/[^0-9]/g, "");
     const g1 = digits.slice(0, 2).split("");
     const g2 = digits.slice(2).split("");
-    const g1Centers = [424, 438];
-    const g2Centers = [468, 482, 497, 511, 525, 540, 554];
-    g1.forEach((d, i) => { if (g1Centers[i]) drawText(page, d, g1Centers[i] - 3, 434, 11, bold, BLACK); });
-    g2.forEach((d, i) => { if (g2Centers[i]) drawText(page, d, g2Centers[i] - 3, 434, 11, bold, BLACK); });
+    const g1Centers = [422, 436];
+    const g2Centers = [461, 475, 490, 504, 518, 533, 547];
+    g1.forEach((d, i) => { if (g1Centers[i] !== undefined) drawText(page, d, g1Centers[i], 434, 10, bold, BLACK); });
+    g2.forEach((d, i) => { if (g2Centers[i] !== undefined) drawText(page, d, g2Centers[i], 434, 10, bold, BLACK); });
   }
 
   // ── Part II: Signature ─────────────────────────────────────────────────────
-  // From pdfplumber: "Signature of U.S. person" label at y=582.1, x=76
-  // Sign line at pdfplumber y≈600 → sign content should sit at ~y=577 (above the line)
-  // "Date" label at y=590.5, x=385.6 → date content at ~y=577, x=400
+  // "Sign Here" box ends at about x=76; signature line starts there.
+  // Place typed/drawn signature at x=110 to clear the "Sign Here" label.
+  // Signature line is at pdfplumber y≈600; place text at ty=588 to sit on the line.
+  // Date label at x=385; place value at x=415, same ty.
   const signatureImage = String(sigData.signatureImage ?? "");
   if (signatureImage && signatureImage.startsWith("data:image/png;base64,")) {
     try {
       const base64Data = signatureImage.replace(/^data:image\/png;base64,/, "");
       const pngBytes = Buffer.from(base64Data, "base64");
       const embeddedSig = await doc.embedPng(pngBytes);
-      const maxW = 250;
-      const maxH = 28;
+      const maxW = 230;
+      const maxH = 24;
       const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
       page.drawImage(embeddedSig, {
-        x: 80,
-        y: py(577, sigDims.height),
+        x: 110,
+        y: py(595, sigDims.height),
         width: sigDims.width,
         height: sigDims.height,
       });
     } catch {
-      if (signer) drawText(page, signer, 80, 577, 13, bold, BLACK);
+      if (signer) drawText(page, signer, 110, 589, 12, bold, BLACK);
     }
   } else if (signer) {
-    drawText(page, signer, 80, 577, 13, bold, BLACK);
+    drawText(page, signer, 110, 589, 12, bold, BLACK);
   }
-  // Date — moved up to match signature line
-  drawText(page, today, 400, 577, 10, reg, BLACK);
+  // Date — right side of signature block
+  drawText(page, today, 415, 589, 10, reg, BLACK);
 
   // ── Electronic submission note ─────────────────────────────────────────────
-  drawText(page, "* Electronically signed via Simon Express Logistics LLC carrier onboarding portal *", 60, 616, 6.5, reg, rgb(0.5, 0.5, 0.5));
+  // Place just above "General Instructions" heading (pdfplumber y=609)
+  drawText(page, "* Electronically signed via Simon Express Logistics LLC carrier onboarding portal *", 60, 603, 6, reg, rgb(0.55, 0.55, 0.55));
 
   return doc.save();
 }
