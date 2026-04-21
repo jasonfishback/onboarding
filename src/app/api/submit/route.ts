@@ -38,27 +38,44 @@ function buildDispatchEmail(data: {
   const wcLabel = wcHasInsurance ? "Workers Comp — Insurance Certificate Uploaded" : wcExemptSigned ? "Workers Comp — Exemption Form Signed" : "Workers Comp";
   const w9Ok = docs.w9Mode === "fill" ? !!(docs.w9Form as Record<string, string>)?.name : !!uploads.w9;
   const w9Label = docs.w9Mode === "fill" ? "W-9 — Filled Out Online" : uploads.w9 ? `W-9 — Uploaded (${uploads.w9})` : "W-9";
-  const coiOk = !!uploads.ins || !!docs.emailSent;
-  const coiLabel = uploads.ins ? `Insurance Certificate — Uploaded (${uploads.ins})` : docs.emailSent ? `Insurance Certificate — Agent Notified (${docs.agentEmail})` : "Insurance Certificate";
+  const coiUploaded = !!uploads.ins;
+  const coiAgentNotified = !!docs.emailSent && !!docs.agentEmail;
+  const coiOk = coiUploaded; // only green if actually uploaded
+  const coiLabel = coiUploaded
+    ? `Insurance Certificate — Uploaded (${uploads.ins})`
+    : coiAgentNotified
+      ? `Insurance Certificate — Not Uploaded`
+      : "Insurance Certificate";
+  const coiDetail = coiAgentNotified && !coiUploaded
+    ? `Request sent to agent: ${docs.agentEmail} — certificate not yet uploaded`
+    : undefined;
 
-  // Helper: render a checklist row
-  const checkRow = (ok: boolean, label: string, detail?: string) => `
+  // Helper: render a checklist row (ok=green, warn=orange, false=gray)
+  const checkRow = (ok: boolean | "warn", label: string, detail?: string) => {
+    const bg = ok === true ? "#22a355" : ok === "warn" ? "#e07000" : "#CC1B1B";
+    const icon = ok === true ? "✓" : ok === "warn" ? "!" : "✗";
+    const badgeBg = ok === true ? "#edfaf3" : ok === "warn" ? "#fff8ed" : "#fff5f5";
+    const badgeColor = ok === true ? "#22a355" : ok === "warn" ? "#e07000" : "#CC1B1B";
+    const badgeBorder = ok === true ? "#22a355" : ok === "warn" ? "#e07000" : "#CC1B1B";
+    const badgeText = ok === true ? "RECEIVED" : ok === "warn" ? "PENDING" : "MISSING";
+    return `
   <tr>
     <td style="padding:10px 14px;vertical-align:top;width:48px">
-      <div style="width:32px;height:32px;border-radius:50%;background:${ok ? "#22a355" : "#e0e0e0"};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;text-align:center;line-height:32px">
-        ${ok ? "✓" : "—"}
+      <div style="width:32px;height:32px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;text-align:center;line-height:32px">
+        ${icon}
       </div>
     </td>
     <td style="padding:10px 0;vertical-align:middle">
-      <div style="font-size:15px;font-weight:700;color:${ok ? "#1a1a1a" : "#999"}">${label}</div>
+      <div style="font-size:15px;font-weight:700;color:#1a1a1a">${label}</div>
       ${detail ? `<div style="font-size:12px;color:#888;margin-top:2px">${detail}</div>` : ""}
     </td>
     <td style="padding:10px 14px;vertical-align:middle;text-align:right;white-space:nowrap">
-      <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;font-weight:700;background:${ok ? "#edfaf3" : "#f5f5f5"};color:${ok ? "#22a355" : "#999"};border:1px solid ${ok ? "#22a355" : "#ddd"}">
-        ${ok ? "RECEIVED" : "MISSING"}
+      <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;font-weight:700;background:${badgeBg};color:${badgeColor};border:1px solid ${badgeBorder}">
+        ${badgeText}
       </span>
     </td>
   </tr>`;
+  };
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
@@ -106,7 +123,7 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
     ${checkRow(agreementSigned, "Carrier Agreement Signed", agreementSigned ? `Signed by ${sig.signerName as string}${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""} &nbsp;·&nbsp; IP: ${ipAddress}` : "Not signed")}
     ${checkRow(wcOk, wcLabel, !wcOk ? "Workers comp documentation missing" : undefined)}
     ${checkRow(w9Ok, w9Label, !w9Ok ? "W-9 not provided" : undefined)}
-    ${checkRow(coiOk, coiLabel, !coiOk ? "Certificate of insurance not received" : undefined)}
+    ${checkRow(coiUploaded ? true : coiAgentNotified ? "warn" : false, coiLabel, coiDetail ?? (!coiUploaded && !coiAgentNotified ? "Certificate of insurance not received" : undefined))}
   </table>
 </div>
 
