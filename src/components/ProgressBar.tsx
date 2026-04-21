@@ -2,6 +2,8 @@
 
 import { RED, DARK } from "./ui";
 
+const GREEN = "#22a355";
+
 const STEPS = [
   "Carrier Lookup",
   "Company Profile",
@@ -24,6 +26,7 @@ export default function ProgressBar({ current }: { current: number }) {
         {STEPS.map((label, i) => {
           const done = i < current;
           const active = i === current;
+          const stepColor = done ? GREEN : active ? RED : "#ccc";
           return (
             <div
               key={i}
@@ -37,7 +40,7 @@ export default function ProgressBar({ current }: { current: number }) {
                     left: 0,
                     width: "50%",
                     height: 2,
-                    background: done || active ? RED : "#ddd",
+                    background: done || active ? (done ? GREEN : RED) : "#ddd",
                     zIndex: 0,
                   }}
                 />
@@ -50,7 +53,7 @@ export default function ProgressBar({ current }: { current: number }) {
                     left: "50%",
                     width: "50%",
                     height: 2,
-                    background: done ? RED : "#ddd",
+                    background: done ? GREEN : "#ddd",
                     zIndex: 0,
                   }}
                 />
@@ -61,9 +64,8 @@ export default function ProgressBar({ current }: { current: number }) {
                   height: 28,
                   borderRadius: "50%",
                   margin: "0 auto 6px",
-                  background: done ? RED : active ? RED : "white",
-                  border:
-                    "2px solid " + (done || active ? RED : "#ccc"),
+                  background: done ? GREEN : active ? RED : "white",
+                  border: "2px solid " + stepColor,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -81,7 +83,7 @@ export default function ProgressBar({ current }: { current: number }) {
                 style={{
                   fontSize: 10,
                   fontWeight: done || active ? 700 : 400,
-                  color: active ? DARK : done ? "#555" : "#aaa",
+                  color: active ? DARK : done ? GREEN : "#aaa",
                   lineHeight: 1.2,
                   paddingBottom: 10,
                 }}
