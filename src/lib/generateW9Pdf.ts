@@ -75,7 +75,7 @@ export async function generateW9PDF(
   const llcType = san(w9Data.llcType || "C");
   const signer  = san(String(sigData.signerName ?? ""));
 
-  const BLUE = rgb(0, 0, 0.8);  // blue ink for filled data
+  // no blue — all black
   const BLACK = rgb(0, 0, 0);
 
   // ── Line 1: Entity/Individual Name ────────────────────────────────────────
@@ -154,10 +154,10 @@ export async function generateW9PDF(
         height: sigDims.height,
       });
     } catch {
-      if (signer) drawText(page, signer, 78, 596, 13, bold, BLUE);
+      if (signer) drawText(page, signer, 78, 596, 13, bold, BLACK);
     }
   } else if (signer) {
-    drawText(page, signer, 78, 596, 13, bold, BLUE);
+    drawText(page, signer, 78, 596, 13, bold, BLACK);
   }
   // Date — same y-level as signature, right side
   drawText(page, today, 390, 596, 10, reg, BLACK);
