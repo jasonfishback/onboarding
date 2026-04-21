@@ -33,6 +33,7 @@ export const SketchInput = ({
   hint,
   required,
   type = "text",
+  inputMode,
 }: {
   label: string;
   value: string;
@@ -41,6 +42,7 @@ export const SketchInput = ({
   hint?: string;
   required?: boolean;
   type?: string;
+  inputMode?: "numeric" | "tel" | "text" | "email";
 }) => (
   <div style={{ marginBottom: 12 }}>
     <label
@@ -61,6 +63,7 @@ export const SketchInput = ({
     )}
     <input
       type={type}
+      inputMode={inputMode}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}

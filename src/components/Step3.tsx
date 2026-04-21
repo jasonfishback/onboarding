@@ -110,6 +110,14 @@ function formatTIN(raw: string, isEIN: boolean): string {
   }
 }
 
+// Format phone as XXX-XXX-XXXX
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return digits.slice(0, 3) + "-" + digits.slice(3);
+  return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+}
+
 export default function Step3({ onNext, onBack, companyName, carrierEmail, companyData }: Step3Props) {
   const [sessionId] = useState(() => {
     if (typeof window !== "undefined") return getSessionId();
@@ -252,7 +260,7 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail, compa
               </div>
               <SketchInput label="City" value={w9Form.city} onChange={setW9("city")} />
               <SketchInput label="State" value={w9Form.state} onChange={setW9("state")} placeholder="UT" />
-              <SketchInput label="ZIP Code" value={w9Form.zip} onChange={setW9("zip")} />
+              <SketchInput label="ZIP Code" value={w9Form.zip} onChange={v => setW9Form(f => ({ ...f, zip: v.replace(/[^0-9]/g, "").slice(0, 5) }))} />
             </div>
             <div style={{ fontSize: 11, color: "#aaa", marginTop: 8 }}>W-9 info will be included in your onboarding packet.</div>
           </div>

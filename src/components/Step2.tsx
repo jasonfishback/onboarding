@@ -17,6 +17,19 @@ interface Step2Props {
   onBack: () => void;
 }
 
+// Format phone as XXX-XXX-XXXX
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return digits.slice(0, 3) + "-" + digits.slice(3);
+  return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+}
+
+// Format ZIP — numeric only, max 5 digits
+function formatZip(raw: string): string {
+  return raw.replace(/[^0-9]/g, "").slice(0, 5);
+}
+
 // Format EIN as XX-XXXXXXX
 function formatEIN(raw: string): string {
   const digits = raw.replace(/[^0-9]/g, "").slice(0, 9);
@@ -84,7 +97,7 @@ function ContactSection({ title, data, setData, primaryContact, showCopy }: {
       <div className="field-grid">
         <Field label="Contact Name" value={data.name} onChange={v => setData(d => ({ ...d, name: v }))} required />
         <Field label="Title / Role" value={data.title} onChange={v => setData(d => ({ ...d, title: v }))} placeholder="Owner, Dispatch…" />
-        <Field label="Phone" value={data.phone} onChange={v => setData(d => ({ ...d, phone: v }))} required inputMode="tel" />
+        <Field label="Phone" value={data.phone} onChange={v => setData(d => ({ ...d, phone: formatPhone(v) }))} required inputMode="tel" />
         <Field label="Email" value={data.email} onChange={v => setData(d => ({ ...d, email: v }))} required />
       </div>
     </div>
@@ -182,7 +195,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           <div className="full"><Field label="Street Address" value={form.address} onChange={set("address")} required error={submitted && !form.address} /></div>
           <Field label="City" value={form.city} onChange={set("city")} required error={submitted && !form.city} />
           <Field label="State" value={form.state} onChange={set("state")} placeholder="UT" />
-          <div className="full"><Field label="ZIP Code" value={form.zip} onChange={set("zip")} required error={submitted && !form.zip} /></div>
+          <div className="full"><Field label="ZIP Code" value={form.zip} onChange={v => set("zip")(formatZip(v))} placeholder="12345" required inputMode="numeric" error={submitted && !form.zip} /></div>
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
@@ -198,7 +211,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
               <div className="full"><Field label="Street Address" value={mailing.address} onChange={v => setMailing(m => ({ ...m, address: v }))} required /></div>
               <Field label="City" value={mailing.city} onChange={v => setMailing(m => ({ ...m, city: v }))} required />
               <Field label="State" value={mailing.state} onChange={v => setMailing(m => ({ ...m, state: v }))} placeholder="UT" />
-              <div className="full"><Field label="ZIP Code" value={mailing.zip} onChange={v => setMailing(m => ({ ...m, zip: v }))} required /></div>
+              <div className="full"><Field label="ZIP Code" value={mailing.zip} onChange={v => setMailing(m => ({ ...m, zip: formatZip(v) }))} placeholder="12345" required inputMode="numeric" /></div>
             </div>
           </div>
         )}
@@ -210,7 +223,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         <div className="field-grid">
           <Field label="Contact Name" value={form.contactName} onChange={set("contactName")} required error={submitted && !form.contactName} />
           <Field label="Title / Role" value={form.contactTitle} onChange={set("contactTitle")} placeholder="Owner, Dispatch…" />
-          <Field label="Phone" value={form.phone} onChange={set("phone")} required inputMode="tel" error={submitted && !form.phone} />
+          <Field label="Phone" value={form.phone} onChange={v => set("phone")(formatPhone(v))} required inputMode="tel" error={submitted && !form.phone} />
           <Field label="Email" value={form.email} onChange={set("email")} required error={submitted && !form.email} />
         </div>
       </div>
