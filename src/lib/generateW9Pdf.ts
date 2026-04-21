@@ -60,7 +60,7 @@ export async function generateW9PDF(
   const page = doc.getPages()[0];
 
   const today = new Date().toLocaleDateString("en-US",
-    { month: "2-digit", day: "2-digit", year: "numeric" });
+    { month: "2-digit", day: "2-digit", year: "numeric", timeZone: "America/Denver" });
 
   // Pull values
   const name    = san(w9Data.name    || String(companyData.legalName  ?? ""));

@@ -60,7 +60,7 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
   };
 
   const canSign = agreed && typeSig.length > 2;
-  const today = new Date().toLocaleDateString();
+  const today = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" });
 
   return (
     <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box" as const, width: "100%" }}>

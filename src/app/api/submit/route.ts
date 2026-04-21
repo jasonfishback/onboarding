@@ -21,7 +21,7 @@ function buildDispatchEmail(data: {
   const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
   const mc = (companyData?.mc as string) || (fmcsaData?.mc as string) || "—";
   const dot = (companyData?.dot as string) || (fmcsaData?.dot as string) || "—";
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
   const tt = (companyData?.trailerTypes as Record<string, boolean>) || {};
   const trailers = [tt.reefer && "Reefer", tt.van && "Dry Van", tt.flatbed && "Flatbed"].filter(Boolean).join(", ") || "—";
 
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
 
     const companyName = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
     const carrierEmail = (companyData?.email as string) || "";
-    const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
     const FROM = process.env.FROM_EMAIL || "onboarding@simonexpress.com";
     const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 35);
 

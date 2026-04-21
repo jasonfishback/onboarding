@@ -286,7 +286,7 @@ async function buildWorkersCompPage(
 
   const wc = (data.wcData || {}) as Record<string, unknown>;
   const company = (data.companyData || data.fmcsaData || {}) as Record<string, string>;
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
 
   page.drawText("WORKERS COMPENSATION", { x: MARGIN, y, size: 18, font: fonts.bold, color: BLACK });
   y -= 8;
@@ -411,7 +411,7 @@ async function buildAgreementPages(
 
   const sig = (data.sigData || {}) as Record<string, unknown>;
   const company = (data.companyData || data.fmcsaData || {}) as Record<string, string>;
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
   const carrierName = sanitize(company.legalName || company.name || '________________________');
   const carrierMC = company.mc || "";
   const carrierDOT = company.dot || "";
