@@ -25,9 +25,10 @@ function formatEIN(raw: string): string {
 }
 
 // Simple field component using CSS classes
-function Field({ label, value, onChange, placeholder, required, type = "text", inputMode }: {
+function Field({ label, value, onChange, placeholder, required, type = "text", inputMode, error }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; required?: boolean; type?: string; inputMode?: "numeric" | "tel" | "email" | "text";
+  placeholder?: string; required?: boolean; type?: string;
+  inputMode?: "numeric" | "tel" | "email" | "text"; error?: boolean;
 }) {
   return (
     <div>
@@ -41,6 +42,7 @@ function Field({ label, value, onChange, placeholder, required, type = "text", i
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         className="field-input"
+        style={error ? { borderColor: "#CC1B1B", background: "#fff5f5" } : undefined}
       />
     </div>
   );
@@ -105,6 +107,8 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
   const toggleTrailer = (t: "reefer" | "van" | "flatbed") =>
     setForm(f => ({ ...f, trailerTypes: { ...f.trailerTypes, [t]: !f.trailerTypes[t] } }));
 
+  const [submitted, setSubmitted] = useState(false);  // only show errors after first attempt
+
   const [dispatch, setDispatch] = useState<ContactData>({ name: "", title: "", phone: "", email: "" });
   const [billing, setBilling] = useState<ContactData>({ name: "", title: "", phone: "", email: "" });
   const [diffMailing, setDiffMailing] = useState(false);
@@ -130,20 +134,20 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       <div className="step-card">
         <div className="section-title">Company Information</div>
         <div className="field-grid">
-          <div className="full"><Field label="Legal Company Name" value={form.legalName} onChange={set("legalName")} required /></div>
+          <div className="full"><Field label="Legal Company Name" value={form.legalName} onChange={set("legalName")} required error={submitted && !form.legalName} /></div>
           <div className="full"><Field label="DBA / Trade Name" value={form.dba} onChange={set("dba")} placeholder="If different from legal name" /></div>
-          <Field label={`MC Number${!form.dot ? " *" : " (if applicable)"}`} value={form.mc} onChange={set("mc")} placeholder="MC123456" inputMode="numeric" />
-          <Field label={`DOT Number${!form.mc ? " *" : " (if applicable)"}`} value={form.dot} onChange={set("dot")} placeholder="9876543" inputMode="numeric" />
+          <Field label={`MC Number${!form.dot ? " *" : " (if applicable)"}`} value={form.mc} onChange={set("mc")} placeholder="MC123456" inputMode="numeric" error={submitted && !form.mc && !form.dot} />
+          <Field label={`DOT Number${!form.mc ? " *" : " (if applicable)"}`} value={form.dot} onChange={set("dot")} placeholder="9876543" inputMode="numeric" error={submitted && !form.mc && !form.dot} />
         </div>
-        {!form.mc && !form.dot && (
+        {submitted && !form.mc && !form.dot && (
           <div style={{ fontSize: 12, color: "#CC1B1B", marginBottom: 10, marginTop: -4 }}>
             ⚠ At least one of MC# or DOT# is required.
           </div>
         )}
         <div className="field-grid">
-          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={v => set("ein")(formatEIN(v))} placeholder="XX-XXXXXXX" required inputMode="numeric" /></div>
-          <Field label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required inputMode="numeric" />
-          <Field label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required inputMode="numeric" />
+          <div className="full"><Field label="EIN / Tax ID" value={form.ein} onChange={v => set("ein")(formatEIN(v))} placeholder="XX-XXXXXXX" required inputMode="numeric" error={submitted && !form.ein} /></div>
+          <Field label="Number of Trucks" value={form.truckCount} onChange={set("truckCount")} placeholder="e.g. 5" required inputMode="numeric" error={submitted && !form.truckCount} />
+          <Field label="Number of Trailers" value={form.trailerCount} onChange={set("trailerCount")} placeholder="e.g. 8" required inputMode="numeric" error={submitted && !form.trailerCount} />
         </div>
 
         {/* Trailer Types */}
@@ -175,10 +179,10 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       <div className="step-card">
         <div className="section-title">Address</div>
         <div className="field-grid">
-          <div className="full"><Field label="Street Address" value={form.address} onChange={set("address")} required /></div>
-          <Field label="City" value={form.city} onChange={set("city")} required />
+          <div className="full"><Field label="Street Address" value={form.address} onChange={set("address")} required error={submitted && !form.address} /></div>
+          <Field label="City" value={form.city} onChange={set("city")} required error={submitted && !form.city} />
           <Field label="State" value={form.state} onChange={set("state")} placeholder="UT" />
-          <div className="full"><Field label="ZIP Code" value={form.zip} onChange={set("zip")} required /></div>
+          <div className="full"><Field label="ZIP Code" value={form.zip} onChange={set("zip")} required error={submitted && !form.zip} /></div>
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
@@ -204,10 +208,10 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       <div className="step-card">
         <div className="section-title">Primary Contact</div>
         <div className="field-grid">
-          <Field label="Contact Name" value={form.contactName} onChange={set("contactName")} required />
+          <Field label="Contact Name" value={form.contactName} onChange={set("contactName")} required error={submitted && !form.contactName} />
           <Field label="Title / Role" value={form.contactTitle} onChange={set("contactTitle")} placeholder="Owner, Dispatch…" />
-          <Field label="Phone" value={form.phone} onChange={set("phone")} required inputMode="tel" />
-          <Field label="Email" value={form.email} onChange={set("email")} required />
+          <Field label="Phone" value={form.phone} onChange={set("phone")} required inputMode="tel" error={submitted && !form.phone} />
+          <Field label="Email" value={form.email} onChange={set("email")} required error={submitted && !form.email} />
         </div>
       </div>
 
@@ -252,24 +256,36 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         </div>
       </div>
 
-      {/* Validation error */}
-      {(() => {
+      {/* Validation error — only shown after first save attempt */}
+      {submitted && (() => {
         const missing = [];
         if (!form.legalName) missing.push("Legal Company Name");
         if (!form.mc && !form.dot) missing.push("MC# or DOT#");
         if (!form.ein) missing.push("EIN / Tax ID");
+        if (!form.address) missing.push("Street Address");
+        if (!form.city) missing.push("City");
+        if (!form.zip) missing.push("ZIP Code");
+        if (!form.contactName) missing.push("Contact Name");
+        if (!form.phone) missing.push("Phone");
+        if (!form.email) missing.push("Email");
         if (missing.length === 0) return null;
         return (
           <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
-            Required to continue: {missing.join(", ")}
+            ⚠ Required to continue: {missing.join(", ")}
           </div>
         );
       })()}
 
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
-        <Btn onClick={() => onNext({ ...form, dispatch, billing, mailing: diffMailing ? mailing : null, usesFactoring, factoringName, wantsQuickPay })}
-          disabled={!form.legalName || (!form.mc && !form.dot) || !form.ein}>
+        <Btn onClick={() => {
+          setSubmitted(true);
+          const valid = !!form.legalName && (!!form.mc || !!form.dot) && !!form.ein &&
+            !!form.address && !!form.city && !!form.zip &&
+            !!form.contactName && !!form.phone && !!form.email;
+          if (!valid) return;
+          onNext({ ...form, dispatch, billing, mailing: diffMailing ? mailing : null, usesFactoring, factoringName, wantsQuickPay });
+        }}>
           Save & Continue →
         </Btn>
       </div>
