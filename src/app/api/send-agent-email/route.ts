@@ -42,9 +42,9 @@ export async function POST(req: NextRequest) {
     <li>Motor Truck Cargo Legal Liability — minimum <strong>$100,000</strong> per occurrence</li>
     <li>Workers' Compensation as required by applicable state law</li>
   </ul>
-  <p>Please email the COI to <a href="mailto:dispatch@simonexpress.com">dispatch@simonexpress.com</a> or fax to <strong>801-663-7537</strong>.</p>
+  <p>Please email the COI to <a href="mailto:setup@simonexpress.com">setup@simonexpress.com</a> or fax to <strong>801-663-7537</strong>.</p>
   <p>Questions? Call <strong>801-260-7010</strong>.</p>
-  <p>Thank you,<br><strong>Simon Express Logistics LLC</strong><br><a href="mailto:dispatch@simonexpress.com">dispatch@simonexpress.com</a> &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; Fax: 801-663-7537</p>
+  <p>Thank you,<br><strong>Simon Express Logistics LLC</strong><br><a href="mailto:setup@simonexpress.com">setup@simonexpress.com</a> &nbsp;·&nbsp; 801-260-7010 &nbsp;·&nbsp; Fax: 801-663-7537</p>
 </body>`,
     });
 
