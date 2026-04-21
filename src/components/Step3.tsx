@@ -305,11 +305,11 @@ export default function Step3({ onNext, onBack, companyName, carrierEmail, compa
         <div style={{ marginBottom: 20, padding: 16, background: "#f8f8f6", border: "1.5px dashed #ccc", borderRadius: 2 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Have your agent send the COI directly</div>
           <div style={{ fontSize: 12, color: "#888", marginBottom: 10 }}>Enter your agent&apos;s email and we&apos;ll send them a COI request, CC&apos;d to dispatch@simonexpress.com.</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
             <input value={agentEmail} onChange={(e) => { setAgentEmail(e.target.value); setEmailSent(false); }}
               placeholder="agent@insurancecompany.com"
               style={{ flex: 1, padding: "9px 12px", border: "2px solid " + DARK, borderRadius: 2, fontFamily: "DM Sans", fontSize: 14, background: "white", outline: "none" }} />
-            <Btn onClick={sendAgentEmail} disabled={!agentEmail || emailSending} variant="secondary" style={{ padding: "9px 18px", fontSize: 15 }}>
+            <Btn onClick={sendAgentEmail} disabled={!agentEmail || emailSending} variant="secondary" style={{ padding: "11px 18px", fontSize: 15, width: "100%" }}>
               {emailSending ? "Sending..." : emailSent ? "✓ Sent!" : "Send Request"}
             </Btn>
           </div>
