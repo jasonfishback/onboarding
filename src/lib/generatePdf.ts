@@ -514,7 +514,7 @@ async function buildAgreementPages(
   y -= 11;
 
   // MC# line
-  page.drawText("MC# 077997-B  |  DOT# 3001453", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
+  page.drawText("MC# 077997", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
   const carrierIdLine = [
     company.mc ? `MC# ${company.mc}` : "",
     company.dot ? `DOT# ${company.dot}` : "",
