@@ -64,9 +64,9 @@ function addPage(doc: PDFDocument, fonts: Fonts, pageNum: number, totalPages?: n
 }
 
 // ─── Helper: draw a section header ────────────────────────────────────────
-function drawSectionHeader(page: PDFPage, fonts: Fonts, y: number, title: string): number {
-  page.drawRectangle({ x: MARGIN, y: y - 4, width: CONTENT_WIDTH, height: 20, color: LIGHT_GRAY });
-  page.drawText(title.toUpperCase(), { x: MARGIN + 6, y: y + 3, size: 8, font: fonts.bold, color: GRAY });
+function drawSectionHeader(page: PDFPage, fonts: Fonts, y: number, title: string, x = MARGIN, width = CONTENT_WIDTH): number {
+  page.drawRectangle({ x, y: y - 4, width, height: 20, color: LIGHT_GRAY });
+  page.drawText(title.toUpperCase(), { x: x + 6, y: y + 3, size: 8, font: fonts.bold, color: GRAY });
   return y - 26;
 }
 
@@ -230,33 +230,37 @@ function buildCarrierProfilePage(
     y -= 36;
   }
 
-  // ── Payment / Factoring ──
+  // ── Payment / Factoring (left col) + Documents Submitted (right col) ──
+  const colLeft = MARGIN;
+  const colRight = PAGE_WIDTH / 2 + 10;
+  const colWid = PAGE_WIDTH / 2 - MARGIN - 10;
+  const twoColY = y;
+
+  // LEFT: Payment Preferences
   y = drawSectionHeader(page, fonts, y, "Payment Preferences");
 
-  // Factoring
   const factoringBox = company.usesFactoring ? RED : LIGHT_GRAY;
   const factoringText = company.usesFactoring ? "YES" : "NO";
-  page.drawRectangle({ x: MARGIN, y: y - 14, width: 40, height: 16, color: factoringBox, borderColor: BLACK, borderWidth: 0.5 });
-  page.drawText(factoringText, { x: MARGIN + 10, y: y - 9, size: 8, font: fonts.bold, color: company.usesFactoring ? WHITE : GRAY });
-  page.drawText("Uses Factoring Company", { x: MARGIN + 48, y: y - 7, size: 9, font: fonts.regular, color: BLACK });
+  page.drawRectangle({ x: colLeft, y: y - 14, width: 40, height: 16, color: factoringBox, borderColor: BLACK, borderWidth: 0.5 });
+  page.drawText(factoringText, { x: colLeft + 10, y: y - 9, size: 8, font: fonts.bold, color: company.usesFactoring ? WHITE : GRAY });
+  page.drawText("Uses Factoring Company", { x: colLeft + 48, y: y - 7, size: 9, font: fonts.regular, color: BLACK });
   if (company.usesFactoring && company.factoringName) {
-    page.drawText(`Company: ${company.factoringName}`, { x: MARGIN + 48, y: y - 19, size: 8, font: fonts.regular, color: GRAY });
+    page.drawText(`Company: ${company.factoringName}`, { x: colLeft + 48, y: y - 19, size: 8, font: fonts.regular, color: GRAY });
     y -= 12;
   }
   y -= 30;
 
-  // Quick Pay
   const qpBox = company.wantsQuickPay ? GREEN : LIGHT_GRAY;
   const qpText = company.wantsQuickPay ? "YES" : "NO";
-  page.drawRectangle({ x: MARGIN, y: y - 14, width: 40, height: 16, color: qpBox, borderColor: BLACK, borderWidth: 0.5 });
-  page.drawText(qpText, { x: MARGIN + 10, y: y - 9, size: 8, font: fonts.bold, color: company.wantsQuickPay ? WHITE : GRAY });
-  page.drawText("Enrolled in Quick Pay (5% fee, paid within 5 days or following Wednesday)", {
-    x: MARGIN + 48, y: y - 7, size: 9, font: fonts.regular, color: BLACK,
-  });
+  page.drawRectangle({ x: colLeft, y: y - 14, width: 40, height: 16, color: qpBox, borderColor: BLACK, borderWidth: 0.5 });
+  page.drawText(qpText, { x: colLeft + 10, y: y - 9, size: 8, font: fonts.bold, color: company.wantsQuickPay ? WHITE : GRAY });
+  page.drawText("Quick Pay (5% fee, paid within 5 days)", { x: colLeft + 48, y: y - 7, size: 9, font: fonts.regular, color: BLACK });
+  page.drawText("or following Wednesday", { x: colLeft + 48, y: y - 18, size: 9, font: fonts.regular, color: BLACK });
   y -= 36;
 
-  // ── Documents submitted ──
-  y = drawSectionHeader(page, fonts, y, "Documents Submitted");
+  // RIGHT: Documents Submitted (starts at same y as Payment Preferences header)
+  let docY = twoColY;
+  docY = drawSectionHeader(page, fonts, docY, "Documents Submitted", colRight);
   const docs = (data.docsData || {}) as Record<string, unknown>;
   const uploads = (docs.uploads || {}) as Record<string, string>;
   const docRows = [
@@ -267,8 +271,8 @@ function buildCarrierProfilePage(
     ["Voided Check / ACH", uploads.check || "Not provided"],
   ];
   for (const [label, val] of docRows) {
-    drawField(page, fonts, MARGIN, y, label as string, val as string, CONTENT_WIDTH);
-    y -= 24;
+    drawField(page, fonts, colRight, docY, label as string, val as string, colWid);
+    docY -= 24;
   }
 }
 
