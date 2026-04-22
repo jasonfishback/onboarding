@@ -523,13 +523,13 @@ async function buildAgreementPages(
   if (carrierIdLine) page.drawText(carrierIdLine, { x: rightX, y, size: 8, font: fonts.regular, color: GRAY });
   y -= 18;
 
-  // "By:" label — then drop down for signature room
+  // "By:" label on its own line, then signature below and indented right
   page.drawText("By:", { x: leftX, y, size: 9, font: fonts.regular, color: GRAY });
   page.drawText("By:", { x: rightX, y, size: 9, font: fonts.regular, color: GRAY });
-  y -= 8;
+  y -= 6;
 
-  // Broker signature — Jason Fishback in Zapf Chancery script font
-  page.drawText("Jason Fishback", { x: leftX + 4, y, size: 26, font: fonts.script, color: BLACK });
+  // Broker signature — indented right of "By:" label (~half inch = 36px)
+  page.drawText("Jason Fishback", { x: leftX + 36, y, size: 26, font: fonts.script, color: BLACK });
 
   // Carrier signature — drawn image OR script font typed name
   const agreementSigImage = sig.signatureImage as string | undefined;
@@ -541,12 +541,12 @@ async function buildAgreementPages(
       const maxW = 200;
       const maxH = 50;
       const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
-      page.drawImage(embeddedSig, { x: rightX + 4, y: y - sigDims.height + 18, width: sigDims.width, height: sigDims.height });
+      page.drawImage(embeddedSig, { x: rightX + 36, y: y - sigDims.height + 18, width: sigDims.width, height: sigDims.height });
     } catch {
-      if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 4, y, size: 26, font: fonts.script, color: BLACK });
+      if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 36, y, size: 26, font: fonts.script, color: BLACK });
     }
   } else if (sig.signerName) {
-    page.drawText(String(sig.signerName), { x: rightX + 4, y, size: 26, font: fonts.script, color: BLACK });
+    page.drawText(String(sig.signerName), { x: rightX + 36, y, size: 26, font: fonts.script, color: BLACK });
   }
 
   y -= 32;
