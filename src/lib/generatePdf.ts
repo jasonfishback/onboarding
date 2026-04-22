@@ -18,6 +18,7 @@ interface Fonts {
   regular: PDFFont;
   bold: PDFFont;
   italic: PDFFont;
+  script: PDFFont;
 }
 
 // ─── Helper: add a new page with header/footer ─────────────────────────────
@@ -522,14 +523,15 @@ async function buildAgreementPages(
   if (carrierIdLine) page.drawText(carrierIdLine, { x: rightX, y, size: 8, font: fonts.regular, color: GRAY });
   y -= 18;
 
-  // "By:" label + signatures
+  // "By:" label — then drop down for signature room
   page.drawText("By:", { x: leftX, y, size: 9, font: fonts.regular, color: GRAY });
   page.drawText("By:", { x: rightX, y, size: 9, font: fonts.regular, color: GRAY });
+  y -= 8;
 
-  // Broker signature — Jason Fishback in italic cursive font
-  page.drawText("Jason Fishback", { x: leftX + 22, y: y + 2, size: 22, font: fonts.italic, color: BLACK });
+  // Broker signature — Jason Fishback in Zapf Chancery script font
+  page.drawText("Jason Fishback", { x: leftX + 4, y, size: 26, font: fonts.script, color: BLACK });
 
-  // Carrier signature — drawn image OR italic cursive typed name
+  // Carrier signature — drawn image OR script font typed name
   const agreementSigImage = sig.signatureImage as string | undefined;
   if (agreementSigImage) {
     try {
@@ -539,16 +541,15 @@ async function buildAgreementPages(
       const maxW = 200;
       const maxH = 50;
       const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
-      page.drawImage(embeddedSig, { x: rightX + 22, y: y - sigDims.height + 18, width: sigDims.width, height: sigDims.height });
+      page.drawImage(embeddedSig, { x: rightX + 4, y: y - sigDims.height + 18, width: sigDims.width, height: sigDims.height });
     } catch {
-      if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 22, y: y + 2, size: 22, font: fonts.italic, color: BLACK });
+      if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 4, y, size: 26, font: fonts.script, color: BLACK });
     }
   } else if (sig.signerName) {
-    // Typed name — use italic cursive font, different from broker
-    page.drawText(String(sig.signerName), { x: rightX + 22, y: y + 2, size: 22, font: fonts.italic, color: BLACK });
+    page.drawText(String(sig.signerName), { x: rightX + 4, y, size: 26, font: fonts.script, color: BLACK });
   }
 
-  y -= 30;
+  y -= 32;
 
   // Signature lines
   page.drawLine({ start: { x: leftX, y }, end: { x: leftX + colW, y }, thickness: 0.75, color: BLACK });
@@ -605,10 +606,18 @@ async function buildAgreementPages(
 // ═══════════════════════════════════════════════════════════════════════════
 export async function generateOnboardingPDF(data: Record<string, unknown>): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
+  // Register fontkit to enable custom font embedding
+  const fontkit = (await import("@pdf-lib/fontkit")).default;
+  doc.registerFontkit(fontkit);
   const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontItalic = await doc.embedFont(StandardFonts.TimesRomanItalic);
-  const fonts: Fonts = { regular: fontRegular, bold: fontBold, italic: fontItalic };
+  // Z003 Medium Italic = URW open-source Zapf Chancery — elegant script for signatures
+  const { readFileSync } = await import("fs");
+  const { join } = await import("path");
+  const scriptFontBytes = readFileSync(join(process.cwd(), "src/lib/Z003-MediumItalic.otf"));
+  const fontScript = await doc.embedFont(scriptFontBytes);
+  const fonts: Fonts = { regular: fontRegular, bold: fontBold, italic: fontItalic, script: fontScript };
   const pageCounter = { n: 0 };
 
   // Build carrier info for footers
