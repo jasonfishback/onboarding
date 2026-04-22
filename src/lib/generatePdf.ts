@@ -17,6 +17,7 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 interface Fonts {
   regular: PDFFont;
   bold: PDFFont;
+  italic: PDFFont;
 }
 
 // ─── Helper: add a new page with header/footer ─────────────────────────────
@@ -495,42 +496,40 @@ async function buildAgreementPages(
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 0.5, color: LIGHT_GRAY });
   y -= 20;
 
-  // Two-column signature area
   const leftX = MARGIN;
   const rightX = PAGE_WIDTH / 2 + 20;
+  const colW = 220;
 
-  // Headers
-  page.drawText("BROKER — Simon Express Logistics LLC", { x: leftX, y, size: 9, font: fonts.bold, color: BLACK });
-  page.drawText("CARRIER — " + carrierName, { x: rightX, y, size: 9, font: fonts.bold, color: BLACK });
-  y -= 14;
-
-  // Carrier address block
-  const addrLines = [
-    carrierAddr,
-    company.phone ? `Phone: ${company.phone}` : "",
-    [company.mc ? `MC# ${company.mc}` : "", company.dot ? `DOT# ${company.dot}` : ""].filter(Boolean).join("   |   "),
-  ].filter(Boolean);
-  for (const line of addrLines) {
-    page.drawText(line, { x: rightX, y, size: 7.5, font: fonts.regular, color: GRAY });
-    y -= 11;
-  }
-  y -= 6;
-
-  // "By:" row with signatures
-  page.drawText("By:", { x: leftX, y, size: 9, font: fonts.regular, color: GRAY });
-  page.drawText("Jason Fishback", { x: leftX + 24, y, size: 11, font: fonts.bold, color: BLACK });
-  page.drawText("By:", { x: rightX, y, size: 9, font: fonts.regular, color: GRAY });
+  // ── BROKER column ──────────────────────────────────────────────────────
+  // Company name bold
+  page.drawText("Simon Express Logistics LLC", { x: leftX, y, size: 10, font: fonts.bold, color: BLACK });
+  // Carrier company name bold
+  page.drawText(carrierName, { x: rightX, y, size: 10, font: fonts.bold, color: BLACK });
   y -= 13;
 
-  // Broker address directly under name
-  page.drawText("Simon Express Logistics LLC", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
-  y -= 11;
+  // Address lines under broker name
   page.drawText("PO Box 1582, Riverton, UT 84065", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
+  // Carrier address
+  page.drawText(sanitize(carrierAddr), { x: rightX, y, size: 8, font: fonts.regular, color: GRAY });
   y -= 11;
-  page.drawText("Phone: 801-260-7010  |  Fax: 801-663-7537", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
-  y -= 8;
 
-  // Carrier signature — embed drawn image or large typed name
+  // MC# line
+  page.drawText("MC# 077997-B  |  DOT# 3001453", { x: leftX, y, size: 8, font: fonts.regular, color: GRAY });
+  const carrierIdLine = [
+    company.mc ? `MC# ${company.mc}` : "",
+    company.dot ? `DOT# ${company.dot}` : "",
+  ].filter(Boolean).join("  |  ");
+  if (carrierIdLine) page.drawText(carrierIdLine, { x: rightX, y, size: 8, font: fonts.regular, color: GRAY });
+  y -= 18;
+
+  // "By:" label + signatures
+  page.drawText("By:", { x: leftX, y, size: 9, font: fonts.regular, color: GRAY });
+  page.drawText("By:", { x: rightX, y, size: 9, font: fonts.regular, color: GRAY });
+
+  // Broker signature — Jason Fishback in italic cursive font
+  page.drawText("Jason Fishback", { x: leftX + 22, y: y + 2, size: 22, font: fonts.italic, color: BLACK });
+
+  // Carrier signature — drawn image OR italic cursive typed name
   const agreementSigImage = sig.signatureImage as string | undefined;
   if (agreementSigImage) {
     try {
@@ -538,31 +537,36 @@ async function buildAgreementPages(
       const pngBytes = Buffer.from(base64Data, "base64");
       const embeddedSig = await doc.embedPng(pngBytes);
       const maxW = 200;
-      const maxH = 55;
+      const maxH = 50;
       const sigDims = embeddedSig.scale(Math.min(maxW / embeddedSig.width, maxH / embeddedSig.height));
-      page.drawImage(embeddedSig, { x: rightX + 20, y: y - sigDims.height + 16, width: sigDims.width, height: sigDims.height });
-      y -= Math.max(sigDims.height + 4, 22);
+      page.drawImage(embeddedSig, { x: rightX + 22, y: y - sigDims.height + 18, width: sigDims.width, height: sigDims.height });
     } catch {
-      if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 20, y, size: 20, font: fonts.bold, color: BLACK });
-      y -= 26;
+      if (sig.signerName) page.drawText(String(sig.signerName), { x: rightX + 22, y: y + 2, size: 22, font: fonts.italic, color: BLACK });
     }
   } else if (sig.signerName) {
-    page.drawText(String(sig.signerName), { x: rightX + 20, y, size: 20, font: fonts.bold, color: BLACK });
-    y -= 26;
-  } else {
-    y -= 26;
+    // Typed name — use italic cursive font, different from broker
+    page.drawText(String(sig.signerName), { x: rightX + 22, y: y + 2, size: 22, font: fonts.italic, color: BLACK });
   }
 
-  page.drawLine({ start: { x: leftX, y }, end: { x: leftX + 220, y }, thickness: 0.75, color: BLACK });
-  page.drawLine({ start: { x: rightX, y }, end: { x: rightX + 220, y }, thickness: 0.75, color: BLACK });
-  y -= 14;
+  y -= 30;
 
-  page.drawText("Title: VP of Operations", { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
+  // Signature lines
+  page.drawLine({ start: { x: leftX, y }, end: { x: leftX + colW, y }, thickness: 0.75, color: BLACK });
+  page.drawLine({ start: { x: rightX, y }, end: { x: rightX + colW, y }, thickness: 0.75, color: BLACK });
+  y -= 13;
+
+  // Printed name
+  page.drawText("Printed: Jason Fishback", { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
   page.drawText(`Printed: ${String(sig.signerName || "________________________")}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
-  y -= 14;
+  y -= 13;
+
+  // Date
   page.drawText(`Date: ${today}`, { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
   page.drawText(`Date: ${today}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
-  y -= 14;
+  y -= 13;
+
+  // Title
+  page.drawText("Title: VP of Operations", { x: leftX, y, size: 8.5, font: fonts.regular, color: BLACK });
   if (sig.signerTitle) {
     page.drawText(`Title: ${String(sig.signerTitle)}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
   }
@@ -603,7 +607,8 @@ export async function generateOnboardingPDF(data: Record<string, unknown>): Prom
   const doc = await PDFDocument.create();
   const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fonts: Fonts = { regular: fontRegular, bold: fontBold };
+  const fontItalic = await doc.embedFont(StandardFonts.TimesRomanItalic);
+  const fonts: Fonts = { regular: fontRegular, bold: fontBold, italic: fontItalic };
   const pageCounter = { n: 0 };
 
   // Build carrier info for footers
