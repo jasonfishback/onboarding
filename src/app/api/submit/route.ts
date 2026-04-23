@@ -92,8 +92,18 @@ export async function buildDispatchEmail(data: {
 }): Promise<string> {
   const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo } = data;
   const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
-  const mc = (companyData?.mc as string) || (fmcsaData?.mc as string) || "—";
-  const dot = (companyData?.dot as string) || (fmcsaData?.dot as string) || "—";
+  // Normalize MC# — strip any leading "MC" prefix so we never render "MC MC024308"
+  const mcRaw = (companyData?.mc as string) || (fmcsaData?.mc as string) || "";
+  const mcDigits = mcRaw.replace(/[^0-9]/g, "");
+  const mc = mcDigits || "—";
+  const hasMc = !!mcDigits;
+  // DOT# similarly
+  const dotRaw = (companyData?.dot as string) || (fmcsaData?.dot as string) || "";
+  const dotDigits = dotRaw.replace(/[^0-9]/g, "");
+  const dot = dotDigits || "—";
+  const hasDot = !!dotDigits;
+  // Likely intrastate carrier: has DOT# but no MC# authority
+  const likelyIntrastate = hasDot && !hasMc;
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
   const tt = (companyData?.trailerTypes as Record<string, boolean>) || {};
   const trailers = [tt.reefer && "Reefer", tt.van && "Dry Van", tt.flatbed && "Flatbed"].filter(Boolean).join(", ") || "—";
@@ -219,6 +229,10 @@ export async function buildDispatchEmail(data: {
   alerts.push({ level: agreementSigned ? "ok" : "fail", label: agreementSigned ? "Carrier agreement signed" : "Carrier agreement NOT signed" });
   alerts.push({ level: wcOk ? "ok" : "fail", label: wcOk ? "Workers comp documented" : "Workers comp missing" });
   alerts.push({ level: w9Ok ? "ok" : "fail", label: w9Ok ? "W-9 received" : "W-9 missing" });
+  // Intrastate warning — DOT# present but no MC# authority on file
+  if (likelyIntrastate) {
+    alerts.push({ level: "warn", label: "Possible intrastate-only carrier — please verify" });
+  }
   alerts.push({
     level: coiUploaded ? "ok" : coiAgentNotified ? "warn" : "fail",
     label: coiUploaded ? "Certificate of insurance received" : coiAgentNotified ? "COI pending — agent notified" : "Certificate of insurance missing"
@@ -321,15 +335,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
   <h1 style="font-size:24px;font-weight:800;margin:0 0 8px;letter-spacing:-.5px;line-height:1.2;color:#ffffff">${name}</h1>
   <p style="color:#d4d4d8;font-size:13px;margin:0;line-height:1.6">
     ${(() => {
-      const mcDigits = String(mc).replace(/[^0-9]/g, "");
-      const dotDigits = String(dot).replace(/[^0-9]/g, "");
-      const mcLink = mcDigits
-        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mcDigits}" target="_blank" style="color:#ffffff;text-decoration:underline;font-weight:700">${mc}</a>`
-        : `<strong style="color:#ffffff">${mc}</strong>`;
-      const dotLink = dotDigits
-        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dotDigits}" target="_blank" style="color:#ffffff;text-decoration:underline;font-weight:700">${dot}</a>`
-        : `<strong style="color:#ffffff">${dot}</strong>`;
-      return `MC# ${mcLink} &nbsp;·&nbsp; DOT# ${dotLink} &nbsp;·&nbsp; <span style="color:#ffffff">${today}</span>`;
+      const mcLink = hasMc
+        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mcDigits}" target="_blank" style="color:#ffffff;text-decoration:underline;font-weight:700">${mcDigits}</a>`
+        : "";
+      const dotLink = hasDot
+        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dotDigits}" target="_blank" style="color:#ffffff;text-decoration:underline;font-weight:700">${dotDigits}</a>`
+        : `<strong style="color:#ffffff">—</strong>`;
+      const mcPart = hasMc ? `MC# ${mcLink} &nbsp;·&nbsp; ` : "";
+      return `${mcPart}DOT# ${dotLink} &nbsp;·&nbsp; <span style="color:#ffffff">${today}</span>`;
     })()}
     ${(companyData?.city || companyData?.state) ? `<br><span style="color:#a1a1aa">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</span>` : ""}
   </p>
@@ -392,16 +405,11 @@ ${(() => {
       <!-- Identity -->
       <div class="f"><div class="lbl">Legal Name</div><div class="val" style="font-weight:700">${name}</div></div>
       <div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
-      <div class="f"><div class="lbl">MC #</div><div class="val">${(() => {
-        const d = String(mc).replace(/[^0-9]/g, "");
-        if (!d) return mc;
-        return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${mc} ↗</a>`;
-      })()}</div></div>
-      <div class="f"><div class="lbl">DOT #</div><div class="val">${(() => {
-        const d = String(dot).replace(/[^0-9]/g, "");
-        if (!d) return dot;
-        return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${dot} ↗</a>`;
-      })()}</div></div>
+      ${hasMc ? `<div class="f"><div class="lbl">MC #</div><div class="val"><a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mcDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${mcDigits} ↗</a></div></div>` : ""}
+      <div class="f"><div class="lbl">DOT #</div><div class="val">${hasDot
+        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dotDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${dotDigits} ↗</a>${likelyIntrastate ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ LIKELY INTRASTATE</span>` : ""}`
+        : "—"
+      }</div></div>
       <div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(() => {
         const userEin = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
         const fmcsaEin = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
@@ -844,7 +852,7 @@ export async function POST(req: NextRequest) {
         from: FROM,
         to: [carrierEmail],
         subject: `✓ Simon Express — Carrier Application Received`,
-        html: buildCarrierConfirmEmail(companyName, today, (companyData?.mc as string) || (fmcsaData?.mc as string), (companyData?.dot as string) || (fmcsaData?.dot as string)),
+        html: buildCarrierConfirmEmail(companyName, today, (((companyData?.mc as string) || (fmcsaData?.mc as string) || "").replace(/[^0-9]/g, "") || undefined), (((companyData?.dot as string) || (fmcsaData?.dot as string) || "").replace(/[^0-9]/g, "") || undefined)),
       });
       console.log("[submit] carrier confirmation sent to:", carrierEmail);
     }
