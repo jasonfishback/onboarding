@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Btn, RED, DARK } from "@/components/ui";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 import type { CarrierData } from "./Step1";
 
 interface ContactData {
@@ -300,7 +301,23 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       <div className="step-card">
         <div className="section-title">Address</div>
         <div className="field-grid">
-          <div className="full"><Field label="Street Address" value={form.address} onChange={set("address")} required error={submitted && !form.address} /></div>
+          <div className="full">
+            <AddressAutocomplete
+              value={form.address}
+              onChange={set("address")}
+              onSelect={({ street, city, state, zip }) => {
+                setForm(f => ({
+                  ...f,
+                  address: street || f.address,
+                  city: city || f.city,
+                  state: state || f.state,
+                  zip: zip ? formatZip(zip) : f.zip,
+                }));
+              }}
+              required
+              error={submitted && !form.address}
+            />
+          </div>
           <Field label="City" value={form.city} onChange={set("city")} required error={submitted && !form.city} />
           <Field label="State" value={form.state} onChange={set("state")} placeholder="UT" />
           <div className="full"><Field label="ZIP Code" value={form.zip} onChange={v => set("zip")(formatZip(v))} placeholder="12345" required inputMode="numeric" error={submitted && !form.zip} /></div>
@@ -316,7 +333,22 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1.5px dashed #ddd" }}>
             <div className="field-label" style={{ marginBottom: 10 }}>Mailing Address</div>
             <div className="field-grid">
-              <div className="full"><Field label="Street Address" value={mailing.address} onChange={v => setMailing(m => ({ ...m, address: v }))} required /></div>
+              <div className="full">
+                <AddressAutocomplete
+                  value={mailing.address}
+                  onChange={v => setMailing(m => ({ ...m, address: v }))}
+                  onSelect={({ street, city, state, zip }) => {
+                    setMailing(m => ({
+                      ...m,
+                      address: street || m.address,
+                      city: city || m.city,
+                      state: state || m.state,
+                      zip: zip ? formatZip(zip) : m.zip,
+                    }));
+                  }}
+                  required
+                />
+              </div>
               <Field label="City" value={mailing.city} onChange={v => setMailing(m => ({ ...m, city: v }))} required />
               <Field label="State" value={mailing.state} onChange={v => setMailing(m => ({ ...m, state: v }))} placeholder="UT" />
               <div className="full"><Field label="ZIP Code" value={mailing.zip} onChange={v => setMailing(m => ({ ...m, zip: formatZip(v) }))} placeholder="12345" required inputMode="numeric" /></div>
