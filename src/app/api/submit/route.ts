@@ -110,6 +110,7 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
 <div class="hdr">
   <h1>🚛 New Carrier Onboarding</h1>
   <p>${name} &nbsp;·&nbsp; MC# ${mc} &nbsp;·&nbsp; ${today}</p>
+  ${(companyData?.city || companyData?.state) ? `<p style="color:#ccc;margin:3px 0 0;font-size:13px">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</p>` : ""}
 </div>
 
 ${(() => {
