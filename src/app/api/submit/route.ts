@@ -135,16 +135,12 @@ async function buildDispatchEmail(data: {
   const billingSameAsPrimary = primaryEmail && primaryEmail.toLowerCase() === billingEmail.toLowerCase();
   const billingSameAsDispatch = dispatchEmail && dispatchEmail.toLowerCase() === billingEmail.toLowerCase();
 
-  // Helper: build a compact validation badge HTML for an email
+  // Helper: build a compact validation badge HTML for an email.
+  // Only renders a badge when something is WRONG. A passing email shows no badge
+  // (a green check doesn't guarantee actual deliverability, so we don't imply that).
   const emailBadgeHtml = (v: Awaited<ReturnType<typeof validateEmail>> | null): string => {
     if (!v) return "";
     const base = "display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700";
-    if (v.valid && v.deliverability === "DELIVERABLE") {
-      return ` <span style="${base};background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ DELIVERABLE${v.qualityScore != null ? ` · ${Math.round(v.qualityScore * 100)}%` : ""}</span>`;
-    }
-    if (v.valid) {
-      return ` <span style="${base};background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ VALID</span>`;
-    }
     if (v.disposable) {
       return ` <span style="${base};background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ DISPOSABLE</span>`;
     }
@@ -160,7 +156,8 @@ async function buildDispatchEmail(data: {
     if (v.deliverability === "RISKY") {
       return ` <span style="${base};background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ RISKY</span>`;
     }
-    return ` <span style="${base};background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ ${v.issue || "UNKNOWN"}</span>`;
+    // Passing — no badge shown
+    return "";
   };
 
   // ── Document status logic ──
@@ -251,14 +248,13 @@ async function buildDispatchEmail(data: {
     if (phoneTypeInfo.type === "Premium Rate") alerts.push({ level: "fail", label: "Primary phone is premium rate" });
     if (phoneTypeInfo.type === "Invalid") alerts.push({ level: "fail", label: "Primary phone invalid" });
   }
-  // Email validation
+  // Email validation — only surface PROBLEMS in the summary (a pass doesn't guarantee deliverability)
   if (primaryEmailValidation) {
     if (primaryEmailValidation.disposable) alerts.push({ level: "fail", label: "Primary email is disposable" });
     else if (!primaryEmailValidation.format) alerts.push({ level: "fail", label: "Primary email format invalid" });
     else if (!primaryEmailValidation.hasMx) alerts.push({ level: "fail", label: "Primary email domain has no mail server" });
     else if (primaryEmailValidation.deliverability === "UNDELIVERABLE") alerts.push({ level: "fail", label: "Primary email undeliverable" });
     else if (primaryEmailValidation.deliverability === "RISKY") alerts.push({ level: "warn", label: "Primary email risky" });
-    else if (primaryEmailValidation.valid) alerts.push({ level: "ok", label: "Primary email valid" });
   }
   // Safety rating
   const ratingLower = String(fmcsaData?.safetyRating || "").toLowerCase();
@@ -320,14 +316,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 <div class="wrap">
 
 <!-- ── HERO HEADER ── -->
-<div class="hero">
-  <div class="hero-label">🚛 New Carrier Onboarding</div>
-  <h1 class="hero-title">${name}</h1>
-  <p class="hero-meta">
-    MC# <strong>${mc}</strong> &nbsp;·&nbsp; DOT# <strong>${dot}</strong> &nbsp;·&nbsp; ${today}
+<div style="background:#1a1a1a;padding:28px 32px">
+  <div style="font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px">🚛 New Carrier Onboarding</div>
+  <h1 style="font-size:24px;font-weight:800;margin:0 0 8px;letter-spacing:-.5px;line-height:1.2;color:#ffffff">${name}</h1>
+  <p style="color:#d4d4d8;font-size:13px;margin:0;line-height:1.6">
+    MC# <strong style="color:#ffffff">${mc}</strong> &nbsp;·&nbsp; DOT# <strong style="color:#ffffff">${dot}</strong> &nbsp;·&nbsp; <span style="color:#ffffff">${today}</span>
     ${(companyData?.city || companyData?.state) ? `<br><span style="color:#a1a1aa">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</span>` : ""}
   </p>
-  <div class="status-pill" style="background:${overallBg};color:${overallColor}">
+  <div style="display:inline-block;margin-top:14px;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:${overallBg};color:${overallColor}">
     ${overallIcon}&nbsp; ${overallLabel}
   </div>
 </div>
