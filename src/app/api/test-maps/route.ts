@@ -8,13 +8,32 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const addr = searchParams.get("addr") || "1121 W 2100 S, SOUTH SALT LAKE, UT 84119";
-  const gKey = process.env.GOOGLE_MAPS_API_KEY;
+  // Try multiple possible names since Vercel may truncate long variable names
+  const gKey = process.env.GOOGLE_MAPS_API_KEY
+    || process.env.GOOGLE_MAPS_API_KE
+    || process.env.GOOGLE_MAPS_API_K
+    || process.env.GOOGLE_MAPS_API
+    || process.env.GOOGLE_MAPS_KEY
+    || process.env.GOOGLE_KEY
+    || process.env.MAPS_API_KEY
+    || process.env.GMAPS_KEY;
 
   const result: Record<string, unknown> = {
     keyConfigured: !!gKey,
     keyLength: gKey?.length ?? 0,
     keyPrefix: gKey ? gKey.slice(0, 8) + "..." : null,
     address: addr,
+    // Report which env names exist so we can see what's actually set
+    envVarsSet: {
+      GOOGLE_MAPS_API_KEY: !!process.env.GOOGLE_MAPS_API_KEY,
+      GOOGLE_MAPS_API_KE: !!process.env.GOOGLE_MAPS_API_KE,
+      GOOGLE_MAPS_API_K: !!process.env.GOOGLE_MAPS_API_K,
+      GOOGLE_MAPS_API: !!process.env.GOOGLE_MAPS_API,
+      GOOGLE_MAPS_KEY: !!process.env.GOOGLE_MAPS_KEY,
+      GOOGLE_KEY: !!process.env.GOOGLE_KEY,
+      MAPS_API_KEY: !!process.env.MAPS_API_KEY,
+      GMAPS_KEY: !!process.env.GMAPS_KEY,
+    },
   };
 
   if (!gKey) {
