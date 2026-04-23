@@ -1,11 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { generateOnboardingPDF } from "@/lib/generatePdf";
 import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
 import { getSessionFiles } from "@/app/api/upload/route";
 
 export const runtime = "nodejs";
+
+// Classify a US phone number into Mobile / Landline / VoIP / Toll-free
+// Uses libphonenumber's getType() — works offline, no API key needed
+function detectPhoneType(phoneStr: string): { type: string; color: string; badge: string } | null {
+  if (!phoneStr) return null;
+  try {
+    const digits = phoneStr.replace(/[^0-9]/g, "");
+    if (digits.length < 10) return null;
+    const parsed = parsePhoneNumberFromString(digits.length === 10 ? `+1${digits}` : `+${digits}`);
+    if (!parsed || !parsed.isValid()) {
+      return { type: "Invalid", color: "#CC1B1B", badge: "⚠ INVALID" };
+    }
+    const type = parsed.getType();
+    // getType() returns: MOBILE, FIXED_LINE, FIXED_LINE_OR_MOBILE, TOLL_FREE, PREMIUM_RATE, SHARED_COST, VOIP, PERSONAL_NUMBER, PAGER, UAN, VOICEMAIL
+    switch (type) {
+      case "MOBILE":
+        return { type: "Mobile", color: "#22a355", badge: "📱 MOBILE" };
+      case "FIXED_LINE":
+        return { type: "Landline", color: "#0066cc", badge: "☎ LANDLINE" };
+      case "FIXED_LINE_OR_MOBILE":
+        return { type: "Mobile/Landline", color: "#666", badge: "📞 MOBILE/LANDLINE" };
+      case "TOLL_FREE":
+        return { type: "Toll-Free", color: "#8a2be2", badge: "📞 TOLL-FREE" };
+      case "VOIP":
+        return { type: "VoIP", color: "#e07000", badge: "🌐 VoIP" };
+      case "PREMIUM_RATE":
+        return { type: "Premium Rate", color: "#CC1B1B", badge: "⚠ PREMIUM RATE" };
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
 
 // ─── Email HTML builders ───────────────────────────────────────────────────
 function buildDispatchEmail(data: {
@@ -201,12 +236,23 @@ ${(() => {
   const fmcsaPhone = ((fmcsaData?.phone as string) || "").replace(/[^0-9]/g, "");
   const display = (companyData?.phone as string) || "—";
   if (!userPhone) return display;
-  if (!fmcsaPhone) return display;
-  if (userPhone === fmcsaPhone) {
-    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+  // Phone type badge (Mobile/Landline/VoIP/Toll-Free) via libphonenumber
+  const typeInfo = detectPhoneType(userPhone);
+  const typeBadge = typeInfo
+    ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${typeInfo.color};border:1px solid ${typeInfo.color}">${typeInfo.badge}</span>`
+    : "";
+  // Match/mismatch badge
+  let matchBadge = "";
+  if (fmcsaPhone && userPhone === fmcsaPhone) {
+    matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+    return `${display}${typeBadge}${matchBadge}`;
   }
-  const fmtFmcsa = fmcsaPhone.length === 10 ? `${fmcsaPhone.slice(0,3)}-${fmcsaPhone.slice(3,6)}-${fmcsaPhone.slice(6)}` : fmcsaPhone;
-  return `<span style="color:#CC1B1B;font-weight:700">${display}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmtFmcsa}</span>`;
+  if (fmcsaPhone && userPhone !== fmcsaPhone) {
+    const fmtFmcsa = fmcsaPhone.length === 10 ? `${fmcsaPhone.slice(0,3)}-${fmcsaPhone.slice(3,6)}-${fmcsaPhone.slice(6)}` : fmcsaPhone;
+    matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmtFmcsa}</span>`;
+    return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${typeBadge}${matchBadge}`;
+  }
+  return `${display}${typeBadge}`;
 })()}</div></div>
 <div class="f"><div class="lbl">Email</div><div class="val">${(() => {
   const userEmail = ((companyData?.email as string) || "").trim().toLowerCase();
