@@ -109,14 +109,59 @@ async function buildDispatchEmail(data: {
   const phoneTypeInfo = await detectPhoneType(primaryPhone);
   const dispatchPhoneTypeInfo = sameAsPrimary ? phoneTypeInfo : (dispatchPhone ? await detectPhoneType(dispatchPhone) : null);
 
-  // Pre-compute email validation (format + MX + disposable check) — parallel calls
-  const primaryEmail = (companyData?.email as string) || "";
-  const dispatchEmail = dispatch.email || "";
+  // Pre-compute email validation for all email fields (primary, dispatch, billing, agent)
+  // Dedupe identical emails to a single validation call so we don't waste Abstract's free tier (100/mo)
+  const billing = (companyData?.billing as Record<string, string>) || {};
+  const primaryEmail = ((companyData?.email as string) || "").trim();
+  const dispatchEmail = (dispatch.email || "").trim();
+  const billingEmail = (billing.email || "").trim();
+  const agentEmail = ((docsData?.agentEmail as string) || "").trim();
+
+  // Collect unique lowercased addresses, validate each once, then map back
+  const uniqueEmails = Array.from(new Set(
+    [primaryEmail, dispatchEmail, billingEmail, agentEmail]
+      .filter(Boolean)
+      .map(e => e.toLowerCase())
+  ));
+  const validationResults = await Promise.all(uniqueEmails.map(e => validateEmail(e)));
+  const validationByEmail = new Map<string, Awaited<ReturnType<typeof validateEmail>>>();
+  uniqueEmails.forEach((e, i) => validationByEmail.set(e, validationResults[i]));
+  const getValidation = (e: string) => e ? validationByEmail.get(e.toLowerCase()) ?? null : null;
+  const primaryEmailValidation = getValidation(primaryEmail);
+  const dispatchEmailValidation = getValidation(dispatchEmail);
+  const billingEmailValidation = getValidation(billingEmail);
+  const agentEmailValidation = getValidation(agentEmail);
   const sameEmail = primaryEmail && primaryEmail.toLowerCase() === dispatchEmail.toLowerCase();
-  const [primaryEmailValidation, dispatchEmailValidation] = await Promise.all([
-    primaryEmail ? validateEmail(primaryEmail) : Promise.resolve(null),
-    sameEmail ? Promise.resolve(null) : (dispatchEmail ? validateEmail(dispatchEmail) : Promise.resolve(null)),
-  ]);
+  const billingSameAsPrimary = primaryEmail && primaryEmail.toLowerCase() === billingEmail.toLowerCase();
+  const billingSameAsDispatch = dispatchEmail && dispatchEmail.toLowerCase() === billingEmail.toLowerCase();
+
+  // Helper: build a compact validation badge HTML for an email
+  const emailBadgeHtml = (v: Awaited<ReturnType<typeof validateEmail>> | null): string => {
+    if (!v) return "";
+    const base = "display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700";
+    if (v.valid && v.deliverability === "DELIVERABLE") {
+      return ` <span style="${base};background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ DELIVERABLE${v.qualityScore != null ? ` · ${Math.round(v.qualityScore * 100)}%` : ""}</span>`;
+    }
+    if (v.valid) {
+      return ` <span style="${base};background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ VALID</span>`;
+    }
+    if (v.disposable) {
+      return ` <span style="${base};background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ DISPOSABLE</span>`;
+    }
+    if (!v.format) {
+      return ` <span style="${base};background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ INVALID FORMAT</span>`;
+    }
+    if (!v.hasMx) {
+      return ` <span style="${base};background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NO MAIL SERVER</span>`;
+    }
+    if (v.deliverability === "UNDELIVERABLE") {
+      return ` <span style="${base};background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ UNDELIVERABLE</span>`;
+    }
+    if (v.deliverability === "RISKY") {
+      return ` <span style="${base};background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ RISKY</span>`;
+    }
+    return ` <span style="${base};background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ ${v.issue || "UNKNOWN"}</span>`;
+  };
 
   // ── Document status logic ──
   const docs = (docsData || {}) as Record<string, unknown>;
@@ -323,25 +368,11 @@ ${(() => {
   return `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${typeBadge}</div></div>`;
 })()}
 <div class="f"><div class="lbl">Primary Email</div><div class="val">${(() => {
-  const userEmail = ((companyData?.email as string) || "").trim().toLowerCase();
+  const userEmail = primaryEmail.toLowerCase();
   const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
-  const display = (companyData?.email as string) || "—";
+  const display = primaryEmail || "—";
   if (!userEmail) return display;
-  // Email validation badge (format + MX + disposable)
-  let validBadge = "";
-  if (primaryEmailValidation) {
-    const v = primaryEmailValidation;
-    if (v.valid) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ VALID</span>`;
-    } else if (v.disposable) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ DISPOSABLE</span>`;
-    } else if (!v.format) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ INVALID FORMAT</span>`;
-    } else if (!v.hasMx) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NO MAIL SERVER</span>`;
-    }
-  }
-  // FMCSA match badge
+  const validBadge = emailBadgeHtml(primaryEmailValidation);
   if (!fmcsaEmail) return `${display}${validBadge}`;
   if (userEmail === fmcsaEmail) {
     return `${display}${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
@@ -354,20 +385,27 @@ ${(() => {
   if (sameEmail) {
     return `<div class="f"><div class="lbl">Dispatch Email</div><div class="val"><span style="color:#888">${dispatchEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`;
   }
-  let validBadge = "";
-  if (dispatchEmailValidation) {
-    const v = dispatchEmailValidation;
-    if (v.valid) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ VALID</span>`;
-    } else if (v.disposable) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ DISPOSABLE</span>`;
-    } else if (!v.format) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ INVALID FORMAT</span>`;
-    } else if (!v.hasMx) {
-      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NO MAIL SERVER</span>`;
-    }
+  return `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>`;
+})()}
+${(() => {
+  // Billing Email row — only show if provided
+  if (!billingEmail) return "";
+  if (billingSameAsPrimary) {
+    return `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`;
   }
-  return `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${validBadge}</div></div>`;
+  if (billingSameAsDispatch) {
+    return `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= DISPATCH</span></div></div>`;
+  }
+  return `<div class="f"><div class="lbl">Billing Email</div><div class="val">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>`;
+})()}
+${(() => {
+  // Agent / COI Email row — only show if provided AND different from other emails
+  if (!agentEmail) return "";
+  const a = agentEmail.toLowerCase();
+  if (a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase()) {
+    return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER EMAIL</span></div></div>`;
+  }
+  return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val">${agentEmail}${emailBadgeHtml(agentEmailValidation)}</div></div>`;
 })()}
 <div class="f"><div class="lbl">Primary Contact</div><div class="val">${(companyData?.contactName as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Quick Pay</div><div class="val">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
