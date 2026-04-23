@@ -92,7 +92,6 @@ export async function GET(req: NextRequest) {
     //   These come back in a public HTML snapshot at safer.fmcsa.dot.gov
     let saferPhone = "";
     let mailingStreet = "", mailingCity = "", mailingState = "", mailingZip = "";
-    let _saferDebug: Record<string, string | number> = {};
     if (c.dotNumber) {
       try {
         const saferRes = await fetch(
@@ -104,29 +103,34 @@ export async function GET(req: NextRequest) {
         );
         if (saferRes.ok) {
           const html = await saferRes.text();
-          // Find the chunks around "Phone" and "Mailing" labels to inspect actual HTML format
-          const phoneIdx = html.search(/Phone/i);
-          const mailIdx = html.search(/Mailing/i);
-          _saferDebug = {
-            len: html.length,
-            phoneIdx,
-            mailIdx,
-            phoneSnippet: phoneIdx >= 0 ? html.slice(Math.max(0, phoneIdx - 50), phoneIdx + 300) : "NOT_FOUND",
-            mailSnippet: mailIdx >= 0 ? html.slice(Math.max(0, mailIdx - 50), mailIdx + 500) : "NOT_FOUND",
-          };
-          const cleanHtml = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
-          const phoneMatch = cleanHtml.match(/Phone:\s*<\/TH>\s*<TD[^>]*>\s*([^<]+)/i);
+          // Phone format in SAFER HTML:
+          //   <A class="querylabel" href="saferhelp.aspx#Phone">Phone:</A></TH>\r\n
+          //          <TD class="queryfield" ...>\r\n       (801) 260-7010\r\n    &nbsp;</TD>
+          const phoneMatch = html.match(/#Phone[^>]*>Phone:<\/A><\/TH>\s*<TD[^>]*>([\s\S]*?)<\/TD>/i);
           if (phoneMatch) {
-            saferPhone = phoneMatch[1].replace(/[^0-9]/g, "").slice(0, 10);
+            const digits = phoneMatch[1].replace(/[^0-9]/g, "");
+            if (digits.length >= 10) {
+              saferPhone = digits.slice(0, 10);
+            }
           }
-          // Mailing Address TD may have multi-line content (street + city/state/zip)
-          const mailMatch = cleanHtml.match(/Mailing Address:\s*<\/TH>\s*<TD[^>]*>\s*([^<]+(?:\n[^<]+)*)/i);
-          console.log("[safer] mailMatch:", mailMatch ? mailMatch[1].slice(0, 100) : "NONE");
+          // Mailing Address format in SAFER:
+          //   <A class="querylabel" href="saferhelp.aspx#MailingAddress">Mailing Address:</A></TH>
+          //       <TD class="queryfield" ... id="mailingaddressvalue">
+          //        PO BOX 1582<br>
+          //          RIVERTON, UT &nbsp; 84065
+          //         &nbsp;</TD>
+          const mailMatch = html.match(/#MailingAddress[^>]*>Mailing Address:<\/A><\/TH>\s*<TD[^>]*>([\s\S]*?)<\/TD>/i);
           if (mailMatch) {
-            const addrLines = mailMatch[1].split("\n").map(l => l.trim()).filter(Boolean);
+            // Clean up: replace <br> with newlines, strip &nbsp;, trim lines
+            const inner = mailMatch[1]
+              .replace(/<br\s*\/?>/gi, "\n")
+              .replace(/&nbsp;/g, " ")
+              .replace(/<[^>]+>/g, "")  // strip any leftover tags
+              .trim();
+            const addrLines = inner.split("\n").map(l => l.trim()).filter(Boolean);
             if (addrLines.length >= 2) {
               mailingStreet = addrLines[0];
-              // Last line is typically "CITY, ST ZIP"
+              // Last line: "CITY, ST   ZIP"
               const lastLine = addrLines[addrLines.length - 1];
               const cszMatch = lastLine.match(/^(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
               if (cszMatch) {
@@ -139,8 +143,7 @@ export async function GET(req: NextRequest) {
             }
           }
         }
-      } catch (e) {
-        console.log("[safer] fetch failed:", String(e));
+      } catch {
         // Non-critical — SAFER scrape timeout is fine, we'll just skip these fields
       }
     }
@@ -188,7 +191,6 @@ export async function GET(req: NextRequest) {
         // Cargo/commodity carried (array of cargo types)
         cargoCarried: Array.isArray(c.carrier?.cargoCarried) ? c.carrier.cargoCarried : [],
         source: "fmcsa",
-        _saferDebug,
       },
     });
   } catch (err) {
