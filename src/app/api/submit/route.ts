@@ -198,58 +198,138 @@ async function buildDispatchEmail(data: {
     const badgeText = ok === true ? "RECEIVED" : ok === "warn" ? "PENDING" : "MISSING";
     return `
   <tr>
-    <td style="padding:10px 14px;vertical-align:top;width:48px">
+    <td style="padding:12px 14px;vertical-align:top;width:48px">
       <div style="width:32px;height:32px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;text-align:center;line-height:32px">
         ${icon}
       </div>
     </td>
-    <td style="padding:10px 0;vertical-align:middle">
+    <td style="padding:12px 0;vertical-align:middle">
       <div style="font-size:15px;font-weight:700;color:#1a1a1a">${label}</div>
       ${detail ? `<div style="font-size:12px;color:#888;margin-top:2px">${detail}</div>` : ""}
     </td>
-    <td style="padding:10px 14px;vertical-align:middle;text-align:right;white-space:nowrap">
-      <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;font-weight:700;background:${badgeBg};color:${badgeColor};border:1px solid ${badgeBorder}">
+    <td style="padding:12px 14px;vertical-align:middle;text-align:right;white-space:nowrap">
+      <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:700;background:${badgeBg};color:${badgeColor};border:1px solid ${badgeBorder};letter-spacing:.04em">
         ${badgeText}
       </span>
     </td>
   </tr>`;
   };
 
+  // ── ALERT TALLIES (for summary card at top of email) ──
+  // Count issues across all categories so the reviewer can see at a glance if everything's OK or needs attention.
+  const alerts: { level: "ok" | "warn" | "fail"; label: string }[] = [];
+  // Documents
+  alerts.push({ level: agreementSigned ? "ok" : "fail", label: agreementSigned ? "Carrier agreement signed" : "Carrier agreement NOT signed" });
+  alerts.push({ level: wcOk ? "ok" : "fail", label: wcOk ? "Workers comp documented" : "Workers comp missing" });
+  alerts.push({ level: w9Ok ? "ok" : "fail", label: w9Ok ? "W-9 received" : "W-9 missing" });
+  alerts.push({
+    level: coiUploaded ? "ok" : coiAgentNotified ? "warn" : "fail",
+    label: coiUploaded ? "Certificate of insurance received" : coiAgentNotified ? "COI pending — agent notified" : "Certificate of insurance missing"
+  });
+  // EIN match
+  const userEinDigits = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
+  const fmcsaEinDigits = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
+  if (userEinDigits && fmcsaEinDigits) {
+    alerts.push({
+      level: userEinDigits === fmcsaEinDigits ? "ok" : "fail",
+      label: userEinDigits === fmcsaEinDigits ? "EIN matches FMCSA" : "EIN does NOT match FMCSA",
+    });
+  }
+  // Phone match
+  if (primaryDigits && fmcsaData?.phone) {
+    const fmcsaPhoneDigits = String(fmcsaData.phone).replace(/[^0-9]/g, "");
+    if (fmcsaPhoneDigits) {
+      alerts.push({
+        level: primaryDigits === fmcsaPhoneDigits ? "ok" : "warn",
+        label: primaryDigits === fmcsaPhoneDigits ? "Phone matches FMCSA" : "Phone differs from FMCSA",
+      });
+    }
+  }
+  // Phone type risk — VoIP or Premium Rate is a soft warning
+  if (phoneTypeInfo) {
+    if (phoneTypeInfo.type === "VoIP") alerts.push({ level: "warn", label: "Primary phone is VoIP" });
+    if (phoneTypeInfo.type === "Premium Rate") alerts.push({ level: "fail", label: "Primary phone is premium rate" });
+    if (phoneTypeInfo.type === "Invalid") alerts.push({ level: "fail", label: "Primary phone invalid" });
+  }
+  // Email validation
+  if (primaryEmailValidation) {
+    if (primaryEmailValidation.disposable) alerts.push({ level: "fail", label: "Primary email is disposable" });
+    else if (!primaryEmailValidation.format) alerts.push({ level: "fail", label: "Primary email format invalid" });
+    else if (!primaryEmailValidation.hasMx) alerts.push({ level: "fail", label: "Primary email domain has no mail server" });
+    else if (primaryEmailValidation.deliverability === "UNDELIVERABLE") alerts.push({ level: "fail", label: "Primary email undeliverable" });
+    else if (primaryEmailValidation.deliverability === "RISKY") alerts.push({ level: "warn", label: "Primary email risky" });
+    else if (primaryEmailValidation.valid) alerts.push({ level: "ok", label: "Primary email valid" });
+  }
+  // Safety rating
+  const ratingLower = String(fmcsaData?.safetyRating || "").toLowerCase();
+  if (ratingLower === "conditional") alerts.push({ level: "warn", label: "FMCSA Safety Rating: Conditional" });
+  if (ratingLower === "unsatisfactory") alerts.push({ level: "fail", label: "FMCSA Safety Rating: Unsatisfactory" });
+  // Out of service
+  if (fmcsaData?.outOfService === "Yes") alerts.push({ level: "fail", label: "Carrier is OUT OF SERVICE" });
+  // Non-USA IP
+  if (ipAddress && geoInfo.countryCode && geoInfo.countryCode !== "US") {
+    alerts.push({ level: "fail", label: `Submission from outside USA (${geoInfo.country})` });
+  }
+
+  const okCount = alerts.filter(a => a.level === "ok").length;
+  const warnCount = alerts.filter(a => a.level === "warn").length;
+  const failCount = alerts.filter(a => a.level === "fail").length;
+  // Overall status
+  const overallStatus = failCount > 0 ? "fail" : warnCount > 0 ? "warn" : "ok";
+  const overallLabel = overallStatus === "ok" ? "All Checks Passed" : overallStatus === "warn" ? "Needs Review" : "Action Required";
+  const overallColor = overallStatus === "ok" ? "#22a355" : overallStatus === "warn" ? "#e07000" : "#CC1B1B";
+  const overallBg = overallStatus === "ok" ? "#edfaf3" : overallStatus === "warn" ? "#fff8ed" : "#fff5f5";
+  const overallIcon = overallStatus === "ok" ? "✓" : overallStatus === "warn" ? "!" : "✗";
+
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
-body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
-.wrap{max-width:640px;margin:0 auto;background:white;border:2px solid #1a1a1a;box-shadow:4px 4px 0 #1a1a1a}
-.hdr{background:#1a1a1a;padding:24px 28px}
-.hdr h1{color:white;margin:0;font-size:22px;letter-spacing:-.3px}
-.hdr p{color:#aaa;margin:6px 0 0;font-size:13px}
-.body{padding:28px}
-.checklist-wrap{border:2px solid #1a1a1a;border-radius:3px;overflow:hidden;margin-bottom:24px;box-shadow:3px 3px 0 #1a1a1a}
-.checklist-hdr{background:#1a1a1a;padding:12px 18px;display:flex;align-items:center;gap:10px}
-.checklist-hdr span{color:white;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.checklist-table{width:100%;border-collapse:collapse}
-.checklist-table tr{border-bottom:1px solid #f0f0f0}
-.checklist-table tr:last-child{border-bottom:none}
-.checklist-table tr:nth-child(even){background:#fafafa}
-.pdf-note{background:#f0f6ff;border:1.5px solid #4a90e2;border-radius:2px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#333}
-.sec{margin-bottom:20px;border:1.5px solid #ddd;border-radius:2px}
-.sec-hdr{background:#f5f3ef;padding:8px 14px;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#555;border-bottom:1px solid #ddd}
-.sec-body{padding:16px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
-.f .lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:2px}
-.f .val{font-size:14px;color:#222}
-.badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f4f4f5;margin:0;padding:24px 12px;color:#18181b}
+.wrap{max-width:680px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+.hero{background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%);padding:28px 32px;color:white}
+.hero-label{font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+.hero-title{font-size:24px;font-weight:800;margin:0 0 8px;letter-spacing:-.5px;line-height:1.2}
+.hero-meta{color:#d4d4d8;font-size:13px;margin:0;line-height:1.6}
+.hero-meta strong{color:#ffffff}
+.status-pill{display:inline-block;margin-top:14px;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.body{padding:28px 32px}
+.alert-summary{border:1px solid #e4e4e7;border-radius:10px;padding:18px 20px;margin-bottom:24px;background:white}
+.alert-summary-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f4f4f5}
+.alert-summary-title{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#18181b}
+.alert-counts{display:flex;gap:10px}
+.alert-count{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700}
+.alert-list{margin:0;padding:0;list-style:none}
+.alert-item{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+.alert-icon{width:20px;height:20px;border-radius:50%;display:inline-block;text-align:center;line-height:20px;font-size:11px;font-weight:700;color:white;flex-shrink:0}
+.pdf-note{background:#eef2ff;border-left:3px solid #6366f1;border-radius:6px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:#3730a3;line-height:1.5}
+.pdf-note strong{color:#312e81}
+.sec{margin-bottom:22px;border:1px solid #e4e4e7;border-radius:10px;overflow:hidden}
+.sec-hdr{background:#fafafa;padding:12px 18px;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#71717a;border-bottom:1px solid #e4e4e7;display:flex;align-items:center;gap:8px}
+.sec-body{padding:18px 20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px}
+.f .lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#a1a1aa;margin-bottom:3px;letter-spacing:.06em}
+.f .val{font-size:14px;color:#18181b;line-height:1.5}
+.badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.02em}
 .bg{background:#edfaf3;color:#22a355;border:1px solid #22a355}
 .br{background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B}
-.bn{background:#f0f0f0;color:#888;border:1px solid #ddd}
-.ftr{background:#f5f3ef;border-top:1px solid #ddd;padding:16px 28px;font-size:11px;color:#888;text-align:center}
+.bn{background:#f4f4f5;color:#71717a;border:1px solid #e4e4e7}
+.doc-list{width:100%;border-collapse:collapse}
+.doc-list tr{border-bottom:1px solid #f4f4f5}
+.doc-list tr:last-child{border-bottom:none}
+.ftr{background:#fafafa;border-top:1px solid #e4e4e7;padding:18px 32px;font-size:11px;color:#a1a1aa;text-align:center;letter-spacing:.02em}
 </style></head><body>
 <div class="wrap">
 
-<div class="hdr">
-  <h1>🚛 New Carrier Onboarding</h1>
-  <p>${name} &nbsp;·&nbsp; MC# ${mc} &nbsp;·&nbsp; ${today}</p>
-  ${(companyData?.city || companyData?.state) ? `<p style="color:#ccc;margin:3px 0 0;font-size:13px">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</p>` : ""}
-  <p style="color:#ff4444;margin:10px 0 0;font-size:14px;font-weight:900;letter-spacing:.05em;text-transform:uppercase">⚠ Check All Alerts ⚠</p>
+<!-- ── HERO HEADER ── -->
+<div class="hero">
+  <div class="hero-label">🚛 New Carrier Onboarding</div>
+  <h1 class="hero-title">${name}</h1>
+  <p class="hero-meta">
+    MC# <strong>${mc}</strong> &nbsp;·&nbsp; DOT# <strong>${dot}</strong> &nbsp;·&nbsp; ${today}
+    ${(companyData?.city || companyData?.state) ? `<br><span style="color:#a1a1aa">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</span>` : ""}
+  </p>
+  <div class="status-pill" style="background:${overallBg};color:${overallColor}">
+    ${overallIcon}&nbsp; ${overallLabel}
+  </div>
 </div>
 
 ${(() => {
@@ -257,40 +337,34 @@ ${(() => {
   const isUSA = !geoInfo.countryCode || geoInfo.countryCode === "US";
   const location = [geoInfo.city, geoInfo.region, geoInfo.country].filter(Boolean).join(", ");
   if (!isUSA) {
-    return `<div style="background:#CC1B1B;padding:16px 24px;border-bottom:3px solid #8b0000">
-  <div style="font-size:22px;font-weight:900;color:white;letter-spacing:1px;margin-bottom:6px">
-    🚩🚩🚩 &nbsp;NOT IN USA!!! &nbsp;🚩🚩🚩
+    return `<div style="background:#CC1B1B;padding:18px 32px;text-align:center">
+  <div style="font-size:20px;font-weight:900;color:white;letter-spacing:.5px;margin-bottom:6px">
+    🚩 &nbsp;SUBMITTED FROM OUTSIDE USA&nbsp; 🚩
   </div>
-  <div style="color:#ffe0e0;font-size:14px;font-weight:700;line-height:1.8">
-    IP: <span style="color:white">${ipAddress}</span> &nbsp;·&nbsp;
-    Location: <span style="color:white">${location || "Unknown"}</span> &nbsp;·&nbsp;
-    ISP: <span style="color:white">${geoInfo.isp || "Unknown"}</span>
+  <div style="color:#ffe0e0;font-size:13px;font-weight:600">
+    IP <span style="color:white">${ipAddress}</span> &nbsp;·&nbsp; ${location || "Unknown location"} &nbsp;·&nbsp; ${geoInfo.isp || "Unknown ISP"}
   </div>
 </div>`;
   }
-  return `<div style="background:#1a1a1a;padding:10px 24px;border-bottom:2px solid #333">
-  <div style="color:#CC1B1B;font-size:13px;font-weight:700;line-height:1.8">
-    🌐 &nbsp;
-    <strong style="color:#ff6b6b">IP: ${ipAddress}</strong>
-    ${location ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">${location}</strong>` : ""}
-    ${geoInfo.isp ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">ISP: ${geoInfo.isp}</strong>` : ""}
-    ${geoInfo.proxy && geoInfo.proxy !== "No" ? ` &nbsp;·&nbsp; <strong style="color:#ffaa00">🚩🚩🚩 PROXY/VPN DETECTED</strong>` : ""}
-  </div>
-</div>`;
+  const proxyFlag = geoInfo.proxy === "true" || geoInfo.hosting === "true";
+  return `<div style="background:#18181b;padding:10px 32px;font-size:11px;color:#a1a1aa;display:flex;justify-content:space-between;align-items:center">
+    <span>🌐 IP <strong style="color:#fff">${ipAddress}</strong> &nbsp;·&nbsp; ${location || "Unknown"} ${geoInfo.isp ? `&nbsp;·&nbsp; ${geoInfo.isp}` : ""}</span>
+    ${proxyFlag ? `<span style="color:#ff6b6b;font-weight:700">🚩 PROXY/VPN</span>` : ""}
+  </div>`;
 })()}
 
 ${(() => {
+  // Conditional/Unsatisfactory safety rating banner (full width below header)
   const rating = (fmcsaData?.safetyRating as string) || "";
-  if (!rating) return "";
   const r = rating.toLowerCase();
   if (r.includes("conditional") || r.includes("unsatisfactory")) {
     const label = r.includes("unsatisfactory") ? "UNSATISFACTORY" : "CONDITIONAL";
-    return `<div style="background:#CC1B1B;padding:14px 24px;border-bottom:3px solid #8b0000;text-align:center">
-  <div style="font-size:20px;font-weight:900;color:white;letter-spacing:1px">
-    ⚠️ &nbsp;WARNING: ${label} SAFETY RATING&nbsp; ⚠️
+    return `<div style="background:#CC1B1B;padding:14px 32px;text-align:center">
+  <div style="font-size:15px;font-weight:900;color:white;letter-spacing:.5px">
+    ⚠️ &nbsp;WARNING: ${label} SAFETY RATING
   </div>
-  <div style="color:#ffe0e0;font-size:13px;font-weight:700;margin-top:4px">
-    This carrier has a <span style="color:white;text-decoration:underline">${rating.toUpperCase()}</span> FMCSA safety rating — review carefully before approval
+  <div style="color:#ffe0e0;font-size:12px;font-weight:600;margin-top:3px">
+    This carrier has a <strong style="color:white">${rating.toUpperCase()}</strong> FMCSA safety rating — review carefully
   </div>
 </div>`;
   }
@@ -299,12 +373,30 @@ ${(() => {
 
 <div class="body">
 
-<!-- ── DOCUMENT CHECKLIST ── -->
-<div class="checklist-wrap">
-  <div class="checklist-hdr">
-    <span>📋 Document Status</span>
+<!-- ── ALERT SUMMARY CARD ── -->
+<div class="alert-summary">
+  <div class="alert-summary-top">
+    <div class="alert-summary-title">✨ Verification Summary</div>
+    <div class="alert-counts">
+      ${okCount > 0 ? `<span class="alert-count" style="color:#22a355"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#22a355;color:white;text-align:center;line-height:14px;font-size:9px">✓</span> ${okCount}</span>` : ""}
+      ${warnCount > 0 ? `<span class="alert-count" style="color:#e07000"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#e07000;color:white;text-align:center;line-height:14px;font-size:9px">!</span> ${warnCount}</span>` : ""}
+      ${failCount > 0 ? `<span class="alert-count" style="color:#CC1B1B"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#CC1B1B;color:white;text-align:center;line-height:14px;font-size:9px">✗</span> ${failCount}</span>` : ""}
+    </div>
   </div>
-  <table class="checklist-table">
+  <ul class="alert-list">
+    ${alerts.map(a => {
+      const bg = a.level === "ok" ? "#22a355" : a.level === "warn" ? "#e07000" : "#CC1B1B";
+      const ic = a.level === "ok" ? "✓" : a.level === "warn" ? "!" : "✗";
+      const col = a.level === "ok" ? "#166534" : a.level === "warn" ? "#92400e" : "#991b1b";
+      return `<li class="alert-item"><span class="alert-icon" style="background:${bg}">${ic}</span><span style="color:${col};font-weight:${a.level === "ok" ? 500 : 600}">${a.label}</span></li>`;
+    }).join("")}
+  </ul>
+</div>
+
+<!-- ── DOCUMENT CHECKLIST ── -->
+<div class="sec">
+  <div class="sec-hdr">📋 Document Status</div>
+  <table class="doc-list">
     ${checkRow(agreementSigned, "Carrier Agreement Signed", agreementSigned ? `Signed by ${sig.signerName as string}${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""} &nbsp;·&nbsp; IP: ${ipAddress}` : "Not signed")}
     ${checkRow(wcOk, wcLabel, !wcOk ? "Workers comp documentation missing" : undefined)}
     ${checkRow(w9Ok, w9Label, !w9Ok ? "W-9 not provided" : undefined)}
@@ -312,10 +404,10 @@ ${(() => {
   </table>
 </div>
 
-<div class="pdf-note">📎 <strong>Two PDFs attached:</strong> (1) Onboarding Packet — carrier profile, workers comp form &amp; signed agreement &nbsp;|&nbsp; (2) Supporting Documents — uploaded files, processed &amp; compressed</div>
+<div class="pdf-note">📎 <strong>Two PDFs attached:</strong> Onboarding Packet (carrier profile, workers comp, signed agreement) &nbsp;·&nbsp; Supporting Documents (uploaded files, processed &amp; compressed)</div>
 
 <!-- ── COMPANY INFO ── -->
-<div class="sec"><div class="sec-hdr">Company Information</div><div class="sec-body"><div class="grid">
+<div class="sec"><div class="sec-hdr">🏢 Company Information</div><div class="sec-body"><div class="grid">
 <div class="f"><div class="lbl">Legal Name</div><div class="val">${name}</div></div>
 <div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
 <div class="f"><div class="lbl">MC #</div><div class="val">${mc}</div></div>
@@ -417,7 +509,7 @@ ${(() => {
   const f = (fmcsaData || {}) as Record<string, string>;
   if (!f.safetyRating && !f.operationClass && !f.outOfService && !f.truckCount) return "";
   const oos = f.outOfService === "Yes";
-  return `<div class="sec"><div class="sec-hdr" style="${oos ? 'background:#ffdddd;color:#CC1B1B;border-color:#CC1B1B' : ''}">FMCSA Safety Snapshot${oos ? " ⚠ OUT OF SERVICE" : ""}</div><div class="sec-body"><div class="grid">
+  return `<div class="sec"><div class="sec-hdr" style="${oos ? "background:#ffdddd;color:#CC1B1B;border-color:#CC1B1B" : ""}">🚦 FMCSA Safety Snapshot${oos ? " ⚠ OUT OF SERVICE" : ""}</div><div class="sec-body"><div class="grid">
 ${f.safetyRating ? `<div class="f"><div class="lbl">Safety Rating</div><div class="val">${f.safetyRating}${f.safetyRatingDate ? ` <span style="color:#888">(${f.safetyRatingDate})</span>` : ""}</div></div>` : ""}
 ${f.operationClass ? `<div class="f"><div class="lbl">Operation Class</div><div class="val">${f.operationClass}</div></div>` : ""}
 ${f.truckCount ? `<div class="f"><div class="lbl">Power Units (FMCSA)</div><div class="val">${f.truckCount}</div></div>` : ""}
@@ -459,7 +551,7 @@ ${(() => {
     ].filter(Boolean).join(" &nbsp;·&nbsp; ") || "—";
     return `<div class="f"><div class="lbl">${label}</div><div class="val">${valText}${status}</div></div>`;
   };
-  return `<div class="sec"><div class="sec-hdr">Insurance Filings (FMCSA)</div><div class="sec-body"><div class="grid">
+  return `<div class="sec"><div class="sec-hdr">🛡️ Insurance Filings (FMCSA)</div><div class="sec-body"><div class="grid">
 ${rowBadge(f.bipdInsuranceOnFile, f.bipdInsuranceRequired || f.bipdRequiredAmount, "Liability (BIPD)")}
 ${rowBadge(f.cargoInsuranceOnFile, f.cargoInsuranceRequired, "Cargo Insurance")}
 ${rowBadge(f.bondInsuranceOnFile, f.bondInsuranceRequired, "Broker Bond")}
@@ -521,7 +613,7 @@ ${(() => {
   // Also skip if mailing matches physical (no need to show twice)
   const mailingDiffers = mailingAddr && mailingAddr.toLowerCase() !== physAddr.toLowerCase();
 
-  return `<div class="sec"><div class="sec-hdr">Address Location Verification</div><div class="sec-body">
+  return `<div class="sec"><div class="sec-hdr">📍 Address Location Verification</div><div class="sec-body">
     <div style="text-align:center;margin-bottom:10px;color:#888;font-size:11px;font-style:italic">Click any image to open the interactive view in Google Maps. If images don't display, click "Display images" in your email client.</div>
     ${buildAddressBlock("Physical Address", physAddr)}
     ${mailingDiffers ? buildAddressBlock("Mailing Address", mailingAddr) : ""}
@@ -529,7 +621,7 @@ ${(() => {
 })()}
 
 <!-- ── SIGNATURE ── -->
-<div class="sec"><div class="sec-hdr">Agreement &amp; Signature</div><div class="sec-body"><div class="grid">
+<div class="sec"><div class="sec-hdr">✍️ Agreement &amp; Signature</div><div class="sec-body"><div class="grid">
 <div class="f"><div class="lbl">Signed By</div><div class="val">${sig.signerName as string || "—"}</div></div>
 <div class="f"><div class="lbl">Title</div><div class="val">${sig.signerTitle as string || "—"}</div></div>
 <div class="f"><div class="lbl">Date Signed</div><div class="val">${today}</div></div>
