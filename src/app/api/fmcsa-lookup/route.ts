@@ -189,8 +189,22 @@ export async function GET(req: NextRequest) {
         cargoInsuranceRequired: c.cargoInsuranceRequired || "",
         bondInsuranceOnFile: c.bondInsuranceOnFile || "",
         bondInsuranceRequired: c.bondInsuranceRequired || "",
-        // Cargo/commodity carried (array of cargo types)
-        cargoCarried: Array.isArray(c.carrier?.cargoCarried) ? c.carrier.cargoCarried : [],
+        // Cargo/commodity carried — FMCSA QCMobile returns this as an object of boolean flags
+        // like { refrigeratedFood: "X", generalFreight: "X", ... }. We normalize to an array of
+        // the cargo category names so downstream code can do simple `.includes()` checks.
+        cargoCarried: (() => {
+          const raw = c.cargoCarried ?? c.carrier?.cargoCarried ?? null;
+          if (!raw) return [];
+          if (Array.isArray(raw)) return raw;
+          if (typeof raw === "object") {
+            return Object.entries(raw)
+              .filter(([, v]) => v === "X" || v === "Y" || v === true || v === "true")
+              .map(([k]) => k);
+          }
+          return [];
+        })(),
+        // TEMP DEBUG — remove after confirming cargo field structure
+        _cargoRaw: c.cargoCarried ?? null,
         source: "fmcsa",
       },
     });
