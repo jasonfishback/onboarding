@@ -92,6 +92,7 @@ export async function GET(req: NextRequest) {
     //   These come back in a public HTML snapshot at safer.fmcsa.dot.gov
     let saferPhone = "";
     let mailingStreet = "", mailingCity = "", mailingState = "", mailingZip = "";
+    let _saferDebug: Record<string, string | number> = {};
     if (c.dotNumber) {
       try {
         const saferRes = await fetch(
@@ -103,8 +104,16 @@ export async function GET(req: NextRequest) {
         );
         if (saferRes.ok) {
           const html = await saferRes.text();
-          console.log("[safer] html length:", html.length, "first 300:", html.slice(0, 300));
-          console.log("[safer] has Phone:", html.includes("Phone:"), "has Mailing:", html.includes("Mailing Address:"));
+          // Find the chunks around "Phone" and "Mailing" labels to inspect actual HTML format
+          const phoneIdx = html.search(/Phone/i);
+          const mailIdx = html.search(/Mailing/i);
+          _saferDebug = {
+            len: html.length,
+            phoneIdx,
+            mailIdx,
+            phoneSnippet: phoneIdx >= 0 ? html.slice(Math.max(0, phoneIdx - 50), phoneIdx + 300) : "NOT_FOUND",
+            mailSnippet: mailIdx >= 0 ? html.slice(Math.max(0, mailIdx - 50), mailIdx + 500) : "NOT_FOUND",
+          };
           const cleanHtml = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
           const phoneMatch = cleanHtml.match(/Phone:\s*<\/TH>\s*<TD[^>]*>\s*([^<]+)/i);
           if (phoneMatch) {
@@ -179,6 +188,7 @@ export async function GET(req: NextRequest) {
         // Cargo/commodity carried (array of cargo types)
         cargoCarried: Array.isArray(c.carrier?.cargoCarried) ? c.carrier.cargoCarried : [],
         source: "fmcsa",
+        _saferDebug,
       },
     });
   } catch (err) {
