@@ -392,22 +392,31 @@ ${(() => {
   const addr = [companyData?.address, companyData?.city, companyData?.state, companyData?.zip].filter(Boolean).join(", ");
   if (!addr) return "";
   const encoded = encodeURIComponent(addr);
-  // Street View image — 600x300, points directly at the address
-  const streetUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encoded}&fov=90&key=${gKey}`;
-  // Satellite / map view — zoom 18, marker on the address
-  const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=18&size=600x300&maptype=satellite&markers=color:red%7C${encoded}&key=${gKey}`;
+  // Street View image — static API
+  const streetImgUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encoded}&fov=90&key=${gKey}`;
+  // Satellite / map view — static API
+  const mapImgUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=18&size=600x300&maptype=satellite&markers=color:red%7C${encoded}&key=${gKey}`;
+  // Clickable links — Street View deep-link uses the panorama viewer; satellite opens in satellite layer
+  const streetViewLink = `https://www.google.com/maps/search/?api=1&query=${encoded}&layer=c`;
+  const satelliteLink = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&center=${encoded}&zoom=18`;
   const googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
   return `<div class="sec"><div class="sec-hdr">Carrier Address — Location Verification</div><div class="sec-body">
   <div style="text-align:center;margin-bottom:10px;color:#555;font-size:12px"><strong>${addr}</strong> &nbsp;·&nbsp; <a href="${googleMapsLink}" style="color:#CC1B1B;text-decoration:none;font-weight:700">Open in Google Maps →</a></div>
-  <div style="text-align:center;margin-bottom:10px;color:#888;font-size:11px;font-style:italic">If images don't display, click "Display images" in your email client, or use the Google Maps link above.</div>
+  <div style="text-align:center;margin-bottom:10px;color:#888;font-size:11px;font-style:italic">Click either image to open the interactive view in Google Maps. If images don't display, click "Display images" in your email client.</div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
     <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
       <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛣 Street View</div>
-      <a href="${googleMapsLink}"><img src="${streetUrl}" alt="Street View - click to open in Google Maps" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" /></a>
+      <a href="${streetViewLink}" target="_blank" rel="noopener">
+        <img src="${streetImgUrl}" alt="Street View — click to open" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+      </a>
+      <div style="font-size:10px;color:#888;margin-top:4px"><a href="${streetViewLink}" target="_blank" rel="noopener" style="color:#0066cc;text-decoration:none">Open Street View →</a></div>
     </td>
     <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
-      <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛰 Satellite View</div>
-      <a href="${googleMapsLink}"><img src="${mapUrl}" alt="Satellite View - click to open in Google Maps" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" /></a>
+      <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛰 Satellite / Aerial View</div>
+      <a href="${satelliteLink}" target="_blank" rel="noopener">
+        <img src="${mapImgUrl}" alt="Satellite View — click to open" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+      </a>
+      <div style="font-size:10px;color:#888;margin-top:4px"><a href="${satelliteLink}" target="_blank" rel="noopener" style="color:#0066cc;text-decoration:none">Open Aerial View →</a></div>
     </td>
   </tr></table>
 </div></div>`;
