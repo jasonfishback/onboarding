@@ -384,42 +384,64 @@ ${rowBadge(f.bondInsuranceOnFile, f.bondInsuranceRequired, "Broker Bond")}
 
 <!-- ── CARRIER ADDRESS LOOKUP (Google Maps) ── -->
 ${(() => {
-  const gKey = process.env.GOOGLE_MAPS_API_KEY;
+  const gKey = process.env.GOOGLE_MAPS_API_KEY
+    || process.env.GOOGLE_MAPS_API_KE
+    || process.env.GOOGLE_MAPS_KEY;
   if (!gKey) {
     console.warn("[submit] GOOGLE_MAPS_API_KEY not set — skipping Street View section");
     return "";
   }
-  const addr = [companyData?.address, companyData?.city, companyData?.state, companyData?.zip].filter(Boolean).join(", ");
-  if (!addr) return "";
-  const encoded = encodeURIComponent(addr);
-  // Street View image — static API
-  const streetImgUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encoded}&fov=90&key=${gKey}`;
-  // Satellite / map view — static API
-  const mapImgUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=18&size=600x300&maptype=satellite&markers=color:red%7C${encoded}&key=${gKey}`;
-  // Clickable links — Street View deep-link uses the panorama viewer; satellite opens in satellite layer
-  const streetViewLink = `https://www.google.com/maps/search/?api=1&query=${encoded}&layer=c`;
-  const satelliteLink = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&center=${encoded}&zoom=18`;
-  const googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
-  return `<div class="sec"><div class="sec-hdr">Carrier Address — Location Verification</div><div class="sec-body">
-  <div style="text-align:center;margin-bottom:10px;color:#555;font-size:12px"><strong>${addr}</strong> &nbsp;·&nbsp; <a href="${googleMapsLink}" style="color:#CC1B1B;text-decoration:none;font-weight:700">Open in Google Maps →</a></div>
-  <div style="text-align:center;margin-bottom:10px;color:#888;font-size:11px;font-style:italic">Click either image to open the interactive view in Google Maps. If images don't display, click "Display images" in your email client.</div>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
-      <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛣 Street View</div>
-      <a href="${streetViewLink}" target="_blank" rel="noopener">
-        <img src="${streetImgUrl}" alt="Street View — click to open" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
-      </a>
-      <div style="font-size:10px;color:#888;margin-top:4px"><a href="${streetViewLink}" target="_blank" rel="noopener" style="color:#0066cc;text-decoration:none">Open Street View →</a></div>
-    </td>
-    <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
-      <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛰 Satellite / Aerial View</div>
-      <a href="${satelliteLink}" target="_blank" rel="noopener">
-        <img src="${mapImgUrl}" alt="Satellite View — click to open" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
-      </a>
-      <div style="font-size:10px;color:#888;margin-top:4px"><a href="${satelliteLink}" target="_blank" rel="noopener" style="color:#0066cc;text-decoration:none">Open Aerial View →</a></div>
-    </td>
-  </tr></table>
-</div></div>`;
+
+  // Helper: build the images + links block for a single address
+  const buildAddressBlock = (label: string, addr: string) => {
+    const encoded = encodeURIComponent(addr);
+    const streetImgUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encoded}&fov=90&key=${gKey}`;
+    const mapImgUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=18&size=600x300&maptype=satellite&markers=color:red%7C${encoded}&key=${gKey}`;
+    const streetViewLink = `https://www.google.com/maps/search/?api=1&query=${encoded}&layer=c`;
+    const satelliteLink = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&center=${encoded}&zoom=18`;
+    const googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+    return `
+  <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eee">
+    <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">${label}</div>
+    <div style="text-align:center;margin-bottom:10px;color:#555;font-size:12px"><strong>${addr}</strong> &nbsp;·&nbsp; <a href="${googleMapsLink}" style="color:#CC1B1B;text-decoration:none;font-weight:700">Open in Google Maps →</a></div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛣 Street View</div>
+        <a href="${streetViewLink}" target="_blank" rel="noopener">
+          <img src="${streetImgUrl}" alt="Street View — click to open" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+        </a>
+        <div style="font-size:10px;color:#888;margin-top:4px"><a href="${streetViewLink}" target="_blank" rel="noopener" style="color:#0066cc;text-decoration:none">Open Street View →</a></div>
+      </td>
+      <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
+        <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛰 Satellite / Aerial View</div>
+        <a href="${satelliteLink}" target="_blank" rel="noopener">
+          <img src="${mapImgUrl}" alt="Satellite View — click to open" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+        </a>
+        <div style="font-size:10px;color:#888;margin-top:4px"><a href="${satelliteLink}" target="_blank" rel="noopener" style="color:#0066cc;text-decoration:none">Open Aerial View →</a></div>
+      </td>
+    </tr></table>
+  </div>`;
+  };
+
+  // Physical address
+  const physAddr = [companyData?.address, companyData?.city, companyData?.state, companyData?.zip].filter(Boolean).join(", ");
+  if (!physAddr) return "";
+
+  // Mailing address — only map if it's an actual street (skip PO Boxes)
+  const mailing = (companyData?.mailing as Record<string, string>) || {};
+  const mailingStreet = mailing.address || "";
+  const isPoBox = /^\s*(p\.?\s*o\.?\s*box|post\s*office\s*box)/i.test(mailingStreet);
+  const mailingAddr = mailingStreet && !isPoBox
+    ? [mailingStreet, mailing.city, mailing.state, mailing.zip].filter(Boolean).join(", ")
+    : "";
+  // Also skip if mailing matches physical (no need to show twice)
+  const mailingDiffers = mailingAddr && mailingAddr.toLowerCase() !== physAddr.toLowerCase();
+
+  return `<div class="sec"><div class="sec-hdr">Address Location Verification</div><div class="sec-body">
+    <div style="text-align:center;margin-bottom:10px;color:#888;font-size:11px;font-style:italic">Click any image to open the interactive view in Google Maps. If images don't display, click "Display images" in your email client.</div>
+    ${buildAddressBlock("Physical Address", physAddr)}
+    ${mailingDiffers ? buildAddressBlock("Mailing Address", mailingAddr) : ""}
+  </div></div>`;
 })()}
 
 <!-- ── SIGNATURE ── -->
