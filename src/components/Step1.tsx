@@ -28,6 +28,7 @@ export interface CarrierData {
   operationClass?: string;
   hazmatFlag?: string;
   outOfService?: string;
+  fmcsaEin?: string;
   officerName?: string;
   cargoCarried?: string[];
   source?: string;

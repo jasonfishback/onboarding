@@ -181,7 +181,19 @@ ${(() => {
 <div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
 <div class="f"><div class="lbl">MC #</div><div class="val">${mc}</div></div>
 <div class="f"><div class="lbl">DOT #</div><div class="val">${dot}</div></div>
-<div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(companyData?.ein as string) || "—"}</div></div>
+<div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(() => {
+  const userEin = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
+  const fmcsaEin = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
+  const display = (companyData?.ein as string) || "—";
+  if (!userEin) return display;
+  if (!fmcsaEin) {
+    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f5f5f5;color:#888;border:1px solid #ddd">FMCSA: NOT ON FILE</span>`;
+  }
+  if (userEin === fmcsaEin) {
+    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+  }
+  return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ MISMATCH (FMCSA: ${fmcsaEin.slice(0,2)}-${fmcsaEin.slice(2)})</span>`;
+})()}</div></div>
 <div class="f"><div class="lbl">Trucks / Trailers</div><div class="val">${(companyData?.truckCount as string) || "—"} / ${(companyData?.trailerCount as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
 <div class="f"><div class="lbl">Phone</div><div class="val">${(companyData?.phone as string) || "—"}</div></div>

@@ -107,6 +107,8 @@ export async function GET(req: NextRequest) {
         mcs150Date: c.mcs150Outdated === "N" ? "Current" : c.mcs150FormDate || "",
         operationClass: c.carrierOperation?.carrierOperationDesc || "",
         hazmatFlag: c.oic === "Y" ? "Yes" : "No",
+        // FMCSA-reported EIN (used for verification, NOT for prefill)
+        fmcsaEin: c.ein ? String(c.ein) : "",
         safetyRating: c.safetyRating || "",
         safetyRatingDate: c.safetyRatingDate || "",
         reviewDate: c.reviewDate || "",
