@@ -129,6 +129,23 @@ export async function GET(req: NextRequest) {
         // Cargo/commodity carried (array of cargo types)
         cargoCarried: Array.isArray(c.carrier?.cargoCarried) ? c.carrier.cargoCarried : [],
         source: "fmcsa",
+        // TEMPORARY DEBUG: raw response so we can see what FMCSA actually returns
+        _rawKeys: Object.keys(c),
+        _rawSample: {
+          telephone: c.telephone,
+          phone: c.phone,
+          phyStreet: c.phyStreet,
+          phyZip: c.phyZip,
+          phyZipcode: c.phyZipcode,
+          mailingStreet: c.mailingStreet,
+          mailingCity: c.mailingCity,
+          mailingState: c.mailingState,
+          mailingZip: c.mailingZip,
+          mailingZipcode: c.mailingZipcode,
+          mailingAddress: c.mailingAddress,
+          totalTrailers: c.totalTrailers,
+          totalPowerUnits: c.totalPowerUnits,
+        },
       },
     });
   } catch (err) {
