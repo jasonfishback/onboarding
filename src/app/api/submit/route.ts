@@ -226,8 +226,7 @@ export async function buildDispatchEmail(data: {
   // Count issues across all categories so the reviewer can see at a glance if everything's OK or needs attention.
   const alerts: { level: "ok" | "warn" | "fail"; label: string }[] = [];
   // Documents
-  alerts.push({ level: agreementSigned ? "ok" : "fail", label: agreementSigned ? "Carrier agreement signed" : "Carrier agreement NOT signed" });
-  // Workers Comp and W-9 are already shown in the Document Status section below, no need to duplicate in Alerts
+  // Documents (Carrier Agreement, Workers Comp, W-9, COI) are covered in the Document Status section below — no duplication in Alerts
   // Intrastate warning — DOT# present but no MC# authority on file
   if (likelyIntrastate) {
     alerts.push({ level: "warn", label: "Possible intrastate-only carrier — please verify" });
@@ -243,10 +242,7 @@ export async function buildDispatchEmail(data: {
   } else if (!hasRefrigeratedFood) {
     alerts.push({ level: "warn", label: "Refrigerated Food not listed in FMCSA cargo types — please verify" });
   }
-  alerts.push({
-    level: coiUploaded ? "ok" : coiAgentNotified ? "warn" : "fail",
-    label: coiUploaded ? "Certificate of insurance received" : coiAgentNotified ? "COI pending — agent notified" : "Certificate of insurance missing"
-  });
+  // COI (Certificate of Insurance) status is covered in the Document Status section below — no duplication in Alerts
   // EIN match
   const userEinDigits = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
   const fmcsaEinDigits = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
