@@ -320,7 +320,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
   <div style="font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px">🚛 New Carrier Onboarding</div>
   <h1 style="font-size:24px;font-weight:800;margin:0 0 8px;letter-spacing:-.5px;line-height:1.2;color:#ffffff">${name}</h1>
   <p style="color:#d4d4d8;font-size:13px;margin:0;line-height:1.6">
-    MC# <strong style="color:#ffffff">${mc}</strong> &nbsp;·&nbsp; DOT# <strong style="color:#ffffff">${dot}</strong> &nbsp;·&nbsp; <span style="color:#ffffff">${today}</span>
+    ${(() => {
+      const mcDigits = String(mc).replace(/[^0-9]/g, "");
+      const dotDigits = String(dot).replace(/[^0-9]/g, "");
+      const mcLink = mcDigits
+        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mcDigits}" target="_blank" style="color:#ffffff;text-decoration:underline;font-weight:700">${mc}</a>`
+        : `<strong style="color:#ffffff">${mc}</strong>`;
+      const dotLink = dotDigits
+        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dotDigits}" target="_blank" style="color:#ffffff;text-decoration:underline;font-weight:700">${dot}</a>`
+        : `<strong style="color:#ffffff">${dot}</strong>`;
+      return `MC# ${mcLink} &nbsp;·&nbsp; DOT# ${dotLink} &nbsp;·&nbsp; <span style="color:#ffffff">${today}</span>`;
+    })()}
     ${(companyData?.city || companyData?.state) ? `<br><span style="color:#a1a1aa">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</span>` : ""}
   </p>
   <div style="display:inline-block;margin-top:14px;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:${overallBg};color:${overallColor}">
@@ -406,8 +416,16 @@ ${(() => {
 <div class="sec"><div class="sec-hdr">🏢 Company Information</div><div class="sec-body"><div class="grid">
 <div class="f"><div class="lbl">Legal Name</div><div class="val">${name}</div></div>
 <div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
-<div class="f"><div class="lbl">MC #</div><div class="val">${mc}</div></div>
-<div class="f"><div class="lbl">DOT #</div><div class="val">${dot}</div></div>
+<div class="f"><div class="lbl">MC #</div><div class="val">${(() => {
+  const d = String(mc).replace(/[^0-9]/g, "");
+  if (!d) return mc;
+  return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:600">${mc} ↗</a>`;
+})()}</div></div>
+<div class="f"><div class="lbl">DOT #</div><div class="val">${(() => {
+  const d = String(dot).replace(/[^0-9]/g, "");
+  if (!d) return dot;
+  return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:600">${dot} ↗</a>`;
+})()}</div></div>
 <div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(() => {
   const userEin = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
   const fmcsaEin = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
