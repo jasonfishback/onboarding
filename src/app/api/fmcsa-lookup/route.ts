@@ -31,21 +31,6 @@ export async function GET(req: NextRequest) {
 
     if (!c) return NextResponse.json({ carrier: null });
 
-    // Log the full carrier object to investigate which fields are actually populated
-    console.log("[fmcsa] carrier fields:", JSON.stringify({
-      legalName: c.legalName,
-      telephone: c.telephone,
-      phone: c.phone,
-      phoneNumber: c.phoneNumber,
-      emailAddress: c.emailAddress,
-      totalPowerUnits: c.totalPowerUnits,
-      totalDrivers: c.totalDrivers,
-      dotNumber: c.dotNumber,
-      safetyRating: c.safetyRating,
-      carrierOperation: c.carrierOperation,
-      allKeys: Object.keys(c),
-    }, null, 2));
-
     // Build MC# from prefix+docketNumber, or fall back to value for MC lookups
     let mc = c.prefix && c.docketNumber
       ? `${c.prefix}${c.docketNumber}`
@@ -129,23 +114,6 @@ export async function GET(req: NextRequest) {
         // Cargo/commodity carried (array of cargo types)
         cargoCarried: Array.isArray(c.carrier?.cargoCarried) ? c.carrier.cargoCarried : [],
         source: "fmcsa",
-        // TEMPORARY DEBUG: raw response so we can see what FMCSA actually returns
-        _rawKeys: Object.keys(c),
-        _rawSample: {
-          telephone: c.telephone,
-          phone: c.phone,
-          phyStreet: c.phyStreet,
-          phyZip: c.phyZip,
-          phyZipcode: c.phyZipcode,
-          mailingStreet: c.mailingStreet,
-          mailingCity: c.mailingCity,
-          mailingState: c.mailingState,
-          mailingZip: c.mailingZip,
-          mailingZipcode: c.mailingZipcode,
-          mailingAddress: c.mailingAddress,
-          totalTrailers: c.totalTrailers,
-          totalPowerUnits: c.totalPowerUnits,
-        },
       },
     });
   } catch (err) {
