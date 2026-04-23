@@ -353,10 +353,9 @@ ${(() => {
 </div>`;
   }
   const proxyFlag = geoInfo.proxy === "true" || geoInfo.hosting === "true";
-  return `<div style="background:#18181b;padding:10px 32px;font-size:11px;color:#a1a1aa;display:flex;justify-content:space-between;align-items:center">
-    <span>🌐 IP <strong style="color:#fff">${ipAddress}</strong> &nbsp;·&nbsp; ${location || "Unknown"} ${geoInfo.isp ? `&nbsp;·&nbsp; ${geoInfo.isp}` : ""}</span>
-    ${proxyFlag ? `<span style="color:#ff6b6b;font-weight:700">🚩 PROXY/VPN</span>` : ""}
-  </div>`;
+  // Non-USA gets a full red banner; domestic IP is rendered as a dedicated section later (below the address block)
+  void proxyFlag; // silence unused in this closure — referenced in the dedicated section
+  return "";
 })()}
 
 ${(() => {
@@ -379,199 +378,158 @@ ${(() => {
 
 <div class="body">
 
-<!-- ── ALERT SUMMARY CARD ── -->
-<div class="alert-summary">
-  <div class="alert-summary-top">
-    <div class="alert-summary-title">✨ Verification Summary</div>
-    <div class="alert-counts">
-      ${okCount > 0 ? `<span class="alert-count" style="color:#22a355"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#22a355;color:white;text-align:center;line-height:14px;font-size:9px">✓</span> ${okCount}</span>` : ""}
-      ${warnCount > 0 ? `<span class="alert-count" style="color:#e07000"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#e07000;color:white;text-align:center;line-height:14px;font-size:9px">!</span> ${warnCount}</span>` : ""}
-      ${failCount > 0 ? `<span class="alert-count" style="color:#CC1B1B"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#CC1B1B;color:white;text-align:center;line-height:14px;font-size:9px">✗</span> ${failCount}</span>` : ""}
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  SECTION 1: CARRIER INFORMATION                                          -->
+<!--  Consolidates company info, contact, equipment, authority, insurance,   -->
+<!--  and agreement/signature into ONE well-organized section                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <div class="sec-hdr">🏢 Carrier Information</div>
+  <div class="sec-body">
+    <div class="grid">
+      <!-- ── Column distribution: simple 2-col grid, sub-grouped by topic ── -->
+
+      <!-- Identity -->
+      <div class="f"><div class="lbl">Legal Name</div><div class="val" style="font-weight:700">${name}</div></div>
+      <div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
+      <div class="f"><div class="lbl">MC #</div><div class="val">${(() => {
+        const d = String(mc).replace(/[^0-9]/g, "");
+        if (!d) return mc;
+        return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${mc} ↗</a>`;
+      })()}</div></div>
+      <div class="f"><div class="lbl">DOT #</div><div class="val">${(() => {
+        const d = String(dot).replace(/[^0-9]/g, "");
+        if (!d) return dot;
+        return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${dot} ↗</a>`;
+      })()}</div></div>
+      <div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(() => {
+        const userEin = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
+        const fmcsaEin = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
+        const display = (companyData?.ein as string) || "—";
+        if (!userEin) return display;
+        if (!fmcsaEin) return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f5f5f5;color:#888;border:1px solid #ddd">FMCSA: N/A</span>`;
+        if (userEin === fmcsaEin) return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES</span>`;
+        return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ MISMATCH (FMCSA: ${fmcsaEin.slice(0,2)}-${fmcsaEin.slice(2)})</span>`;
+      })()}</div></div>
+      <div class="f"><div class="lbl">Authority Status</div><div class="val">${(() => {
+        const f = (fmcsaData || {}) as Record<string, string>;
+        const oos = f.outOfService === "Yes";
+        if (oos) return `<strong style="color:#CC1B1B">⚠ OUT OF SERVICE</strong>`;
+        if (f.safetyRating) {
+          const r = f.safetyRating.toLowerCase();
+          const color = r.includes("unsatisfactory") ? "#CC1B1B" : r.includes("conditional") ? "#e07000" : "#22a355";
+          return `<strong style="color:${color}">${f.safetyRating}</strong>${f.safetyRatingDate ? ` <span style="color:#888;font-size:11px">(${f.safetyRatingDate})</span>` : ""}`;
+        }
+        return "Active &nbsp;<span style='color:#888;font-size:11px'>(Not Rated)</span>";
+      })()}</div></div>
+
+      <!-- Primary Contact -->
+      <div class="f"><div class="lbl">Primary Contact</div><div class="val" style="font-weight:700">${(companyData?.contactName as string) || "—"}</div></div>
+      <div class="f"><div class="lbl">Primary Phone</div><div class="val">${(() => {
+        const userPhone = ((companyData?.phone as string) || "").replace(/[^0-9]/g, "");
+        const fmcsaPhone = ((fmcsaData?.phone as string) || "").replace(/[^0-9]/g, "");
+        const display = (companyData?.phone as string) || "—";
+        if (!userPhone) return display;
+        const typeBadge = phoneTypeInfo
+          ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${phoneTypeInfo.color};border:1px solid ${phoneTypeInfo.color}">${phoneTypeInfo.badge}${phoneTypeInfo.carrier ? ` · ${phoneTypeInfo.carrier}` : ""}</span>`
+          : "";
+        if (fmcsaPhone && userPhone === fmcsaPhone) {
+          return `${display}${typeBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES</span>`;
+        }
+        if (fmcsaPhone && userPhone !== fmcsaPhone) {
+          const fmtFmcsa = fmcsaPhone.length === 10 ? `${fmcsaPhone.slice(0,3)}-${fmcsaPhone.slice(3,6)}-${fmcsaPhone.slice(6)}` : fmcsaPhone;
+          return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${typeBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmtFmcsa}</span>`;
+        }
+        return `${display}${typeBadge}`;
+      })()}</div></div>
+      ${dispatchDigits ? (sameAsPrimary
+        ? `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val"><span style="color:#888">${dispatchPhone}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`
+        : `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${dispatchPhoneTypeInfo ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>` : ""}</div></div>`)
+        : ""}
+      <div class="f"><div class="lbl">Primary Email</div><div class="val">${(() => {
+        const userEmail = primaryEmail.toLowerCase();
+        const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
+        const display = primaryEmail || "—";
+        if (!userEmail) return display;
+        const validBadge = emailBadgeHtml(primaryEmailValidation);
+        if (!fmcsaEmail) return `${display}${validBadge}`;
+        if (userEmail === fmcsaEmail) return `${display}${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES</span>`;
+        return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmcsaEmail}</span>`;
+      })()}</div></div>
+      ${dispatchEmail ? (sameEmail
+        ? `<div class="f"><div class="lbl">Dispatch Email</div><div class="val"><span style="color:#888">${dispatchEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`
+        : `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>`)
+        : ""}
+      ${billingEmail ? (billingSameAsPrimary
+        ? `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`
+        : billingSameAsDispatch
+          ? `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= DISPATCH</span></div></div>`
+          : `<div class="f"><div class="lbl">Billing Email</div><div class="val">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>`)
+        : ""}
+      ${agentEmail ? (() => {
+        const a = agentEmail.toLowerCase();
+        if (a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase()) {
+          return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER</span></div></div>`;
+        }
+        return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val">${agentEmail}${emailBadgeHtml(agentEmailValidation)}</div></div>`;
+      })() : ""}
+
+      <!-- Equipment -->
+      <div class="f"><div class="lbl">Power Units (Trucks)</div><div class="val">${(companyData?.truckCount as string) || "—"}${(fmcsaData?.truckCount && (fmcsaData.truckCount as string) !== (companyData?.truckCount as string)) ? ` <span style="color:#888;font-size:11px">(FMCSA: ${fmcsaData.truckCount as string})</span>` : ""}</div></div>
+      <div class="f"><div class="lbl">Trailers</div><div class="val">${(companyData?.trailerCount as string) || "—"}</div></div>
+      <div class="f" style="grid-column:1/-1"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
+      ${(fmcsaData?.operationClass) ? `<div class="f"><div class="lbl">Operation Class</div><div class="val">${fmcsaData.operationClass as string}</div></div>` : ""}
+      ${fmcsaData?.hazmatFlag === "Yes" ? `<div class="f"><div class="lbl">Hazmat</div><div class="val"><strong style="color:#CC1B1B">⚠ Yes</strong></div></div>` : ""}
+
+      <!-- Payment Preferences -->
+      <div class="f"><div class="lbl">Quick Pay</div><div class="val">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
+      <div class="f"><div class="lbl">Factoring</div><div class="val">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
+
+      <!-- Insurance Filings (FMCSA) -->
+      ${(() => {
+        const f = (fmcsaData || {}) as Record<string, string>;
+        const hasAny = f.bipdInsuranceOnFile || f.cargoInsuranceOnFile || f.bondInsuranceOnFile ||
+          f.bipdInsuranceRequired || f.cargoInsuranceRequired || f.bondInsuranceRequired;
+        if (!hasAny) return "";
+        const fmt = (v: string) => {
+          const n = parseInt(String(v || "").replace(/[^0-9]/g, ""), 10);
+          if (!n) return "";
+          return n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
+        };
+        const insRow = (onFile: string, required: string, label: string) => {
+          if (!onFile && !required) return "";
+          const onFileFmt = fmt(onFile);
+          const requiredFmt = fmt(required);
+          const onFileN = parseInt(String(onFile || "").replace(/[^0-9]/g, ""), 10) || 0;
+          const requiredN = parseInt(String(required || "").replace(/[^0-9]/g, ""), 10) || 0;
+          let status = "";
+          if (requiredN > 0 && onFileN >= requiredN) {
+            status = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ FILED</span>`;
+          } else if (requiredN > 0 && onFileN === 0) {
+            status = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NOT ON FILE</span>`;
+          } else if (requiredN > 0 && onFileN > 0 && onFileN < requiredN) {
+            status = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ UNDERINSURED</span>`;
+          }
+          const parts = [
+            onFileFmt ? `On file: <strong>${onFileFmt}</strong>` : "",
+            requiredFmt ? `<span style="color:#888">Req: ${requiredFmt}</span>` : "",
+          ].filter(Boolean).join(" · ") || "—";
+          return `<div class="f"><div class="lbl">${label}</div><div class="val">${parts}${status}</div></div>`;
+        };
+        return insRow(f.bipdInsuranceOnFile, f.bipdInsuranceRequired || f.bipdRequiredAmount, "Liability (BIPD)")
+          + insRow(f.cargoInsuranceOnFile, f.cargoInsuranceRequired, "Cargo Insurance")
+          + insRow(f.bondInsuranceOnFile, f.bondInsuranceRequired, "Broker Bond");
+      })()}
+
+      <!-- Agreement & Signature -->
+      <div class="f" style="grid-column:1/-1;border-top:1px solid #e4e4e7;padding-top:12px;margin-top:4px"><div class="lbl">Agreement Signed By</div><div class="val"><strong>${sig.signerName as string || "—"}</strong>${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""} &nbsp;<span style="color:#888;font-size:12px">on ${today}</span></div></div>
     </div>
   </div>
-  <ul class="alert-list">
-    ${alerts.map(a => {
-      const bg = a.level === "ok" ? "#22a355" : a.level === "warn" ? "#e07000" : "#CC1B1B";
-      const ic = a.level === "ok" ? "✓" : a.level === "warn" ? "!" : "✗";
-      const col = a.level === "ok" ? "#166534" : a.level === "warn" ? "#92400e" : "#991b1b";
-      return `<li class="alert-item"><span class="alert-icon" style="background:${bg}">${ic}</span><span style="color:${col};font-weight:${a.level === "ok" ? 500 : 600}">${a.label}</span></li>`;
-    }).join("")}
-  </ul>
 </div>
 
-<!-- ── DOCUMENT CHECKLIST ── -->
-<div class="sec">
-  <div class="sec-hdr">📋 Document Status</div>
-  <table class="doc-list">
-    ${checkRow(agreementSigned, "Carrier Agreement Signed", agreementSigned ? `Signed by ${sig.signerName as string}${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""} &nbsp;·&nbsp; IP: ${ipAddress}` : "Not signed")}
-    ${checkRow(wcOk, wcLabel, !wcOk ? "Workers comp documentation missing" : undefined)}
-    ${checkRow(w9Ok, w9Label, !w9Ok ? "W-9 not provided" : undefined)}
-    ${checkRow(coiUploaded ? true : coiAgentNotified ? "warn" : false, coiLabel, coiDetail ?? (!coiUploaded && !coiAgentNotified ? "Certificate of insurance not received" : undefined))}
-  </table>
-</div>
-
-<div class="pdf-note">📎 <strong>Two PDFs attached:</strong> Onboarding Packet (carrier profile, workers comp, signed agreement) &nbsp;·&nbsp; Supporting Documents (uploaded files, processed &amp; compressed)</div>
-
-<!-- ── COMPANY INFO ── -->
-<div class="sec"><div class="sec-hdr">🏢 Company Information</div><div class="sec-body"><div class="grid">
-<div class="f"><div class="lbl">Legal Name</div><div class="val">${name}</div></div>
-<div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
-<div class="f"><div class="lbl">MC #</div><div class="val">${(() => {
-  const d = String(mc).replace(/[^0-9]/g, "");
-  if (!d) return mc;
-  return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:600">${mc} ↗</a>`;
-})()}</div></div>
-<div class="f"><div class="lbl">DOT #</div><div class="val">${(() => {
-  const d = String(dot).replace(/[^0-9]/g, "");
-  if (!d) return dot;
-  return `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${d}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:600">${dot} ↗</a>`;
-})()}</div></div>
-<div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(() => {
-  const userEin = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
-  const fmcsaEin = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
-  const display = (companyData?.ein as string) || "—";
-  if (!userEin) return display;
-  if (!fmcsaEin) {
-    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f5f5f5;color:#888;border:1px solid #ddd">FMCSA: NOT ON FILE</span>`;
-  }
-  if (userEin === fmcsaEin) {
-    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
-  }
-  return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ MISMATCH (FMCSA: ${fmcsaEin.slice(0,2)}-${fmcsaEin.slice(2)})</span>`;
-})()}</div></div>
-<div class="f"><div class="lbl">Trucks / Trailers</div><div class="val">${(companyData?.truckCount as string) || "—"} / ${(companyData?.trailerCount as string) || "—"}</div></div>
-<div class="f"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
-<div class="f"><div class="lbl">Primary Phone</div><div class="val">${(() => {
-  const userPhone = ((companyData?.phone as string) || "").replace(/[^0-9]/g, "");
-  const fmcsaPhone = ((fmcsaData?.phone as string) || "").replace(/[^0-9]/g, "");
-  const display = (companyData?.phone as string) || "—";
-  if (!userPhone) return display;
-  // Phone type badge (Mobile/Landline/VoIP/Toll-Free) — via Numverify → libphonenumber fallback
-  const typeBadge = phoneTypeInfo
-    ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${phoneTypeInfo.color};border:1px solid ${phoneTypeInfo.color}">${phoneTypeInfo.badge}${phoneTypeInfo.carrier ? ` · ${phoneTypeInfo.carrier}` : ""}</span>`
-    : "";
-  // Match/mismatch badge
-  if (fmcsaPhone && userPhone === fmcsaPhone) {
-    const matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
-    return `${display}${typeBadge}${matchBadge}`;
-  }
-  if (fmcsaPhone && userPhone !== fmcsaPhone) {
-    const fmtFmcsa = fmcsaPhone.length === 10 ? `${fmcsaPhone.slice(0,3)}-${fmcsaPhone.slice(3,6)}-${fmcsaPhone.slice(6)}` : fmcsaPhone;
-    const matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmtFmcsa}</span>`;
-    return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${typeBadge}${matchBadge}`;
-  }
-  return `${display}${typeBadge}`;
-})()}</div></div>
-${(() => {
-  // Dispatch Phone row — only show if provided AND different from primary
-  if (!dispatchDigits) return "";
-  if (sameAsPrimary) {
-    return `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val"><span style="color:#888">${dispatchPhone}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`;
-  }
-  const typeBadge = dispatchPhoneTypeInfo
-    ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>`
-    : "";
-  return `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${typeBadge}</div></div>`;
-})()}
-<div class="f"><div class="lbl">Primary Email</div><div class="val">${(() => {
-  const userEmail = primaryEmail.toLowerCase();
-  const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
-  const display = primaryEmail || "—";
-  if (!userEmail) return display;
-  const validBadge = emailBadgeHtml(primaryEmailValidation);
-  if (!fmcsaEmail) return `${display}${validBadge}`;
-  if (userEmail === fmcsaEmail) {
-    return `${display}${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
-  }
-  return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmcsaEmail}</span>`;
-})()}</div></div>
-${(() => {
-  // Dispatch Email row — only show if provided
-  if (!dispatchEmail) return "";
-  if (sameEmail) {
-    return `<div class="f"><div class="lbl">Dispatch Email</div><div class="val"><span style="color:#888">${dispatchEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`;
-  }
-  return `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>`;
-})()}
-${(() => {
-  // Billing Email row — only show if provided
-  if (!billingEmail) return "";
-  if (billingSameAsPrimary) {
-    return `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`;
-  }
-  if (billingSameAsDispatch) {
-    return `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= DISPATCH</span></div></div>`;
-  }
-  return `<div class="f"><div class="lbl">Billing Email</div><div class="val">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>`;
-})()}
-${(() => {
-  // Agent / COI Email row — only show if provided AND different from other emails
-  if (!agentEmail) return "";
-  const a = agentEmail.toLowerCase();
-  if (a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase()) {
-    return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER EMAIL</span></div></div>`;
-  }
-  return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val">${agentEmail}${emailBadgeHtml(agentEmailValidation)}</div></div>`;
-})()}
-<div class="f"><div class="lbl">Primary Contact</div><div class="val">${(companyData?.contactName as string) || "—"}</div></div>
-<div class="f"><div class="lbl">Quick Pay</div><div class="val">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
-<div class="f"><div class="lbl">Factoring</div><div class="val">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
-</div></div></div>
-
-<!-- ── FMCSA SAFETY SNAPSHOT ── -->
-${(() => {
-  const f = (fmcsaData || {}) as Record<string, string>;
-  if (!f.safetyRating && !f.operationClass && !f.outOfService && !f.truckCount) return "";
-  const oos = f.outOfService === "Yes";
-  return `<div class="sec"><div class="sec-hdr" style="${oos ? "background:#ffdddd;color:#CC1B1B;border-color:#CC1B1B" : ""}">🚦 FMCSA Safety Snapshot${oos ? " ⚠ OUT OF SERVICE" : ""}</div><div class="sec-body"><div class="grid">
-${f.safetyRating ? `<div class="f"><div class="lbl">Safety Rating</div><div class="val">${f.safetyRating}${f.safetyRatingDate ? ` <span style="color:#888">(${f.safetyRatingDate})</span>` : ""}</div></div>` : ""}
-${f.operationClass ? `<div class="f"><div class="lbl">Operation Class</div><div class="val">${f.operationClass}</div></div>` : ""}
-${f.truckCount ? `<div class="f"><div class="lbl">Power Units (FMCSA)</div><div class="val">${f.truckCount}</div></div>` : ""}
-${f.driverCount ? `<div class="f"><div class="lbl">Drivers (FMCSA)</div><div class="val">${f.driverCount}</div></div>` : ""}
-${f.hazmatFlag === "Yes" ? `<div class="f"><div class="lbl">Hazmat</div><div class="val"><strong style="color:#CC1B1B">Yes</strong></div></div>` : ""}
-${oos ? `<div class="f"><div class="lbl">Status</div><div class="val"><strong style="color:#CC1B1B">⚠ OUT OF SERVICE</strong></div></div>` : ""}
-</div></div></div>`;
-})()}
-
-<!-- ── INSURANCE FILINGS (FMCSA) ── -->
-${(() => {
-  const f = (fmcsaData || {}) as Record<string, string>;
-  const hasAny = f.bipdInsuranceOnFile || f.cargoInsuranceOnFile || f.bondInsuranceOnFile ||
-    f.bipdInsuranceRequired || f.cargoInsuranceRequired || f.bondInsuranceRequired;
-  if (!hasAny) return "";
-  // Badge helper: green if on-file meets/exceeds required; red if required but not on file
-  const fmt = (v: string) => {
-    const n = parseInt(String(v || "").replace(/[^0-9]/g, ""), 10);
-    if (!n) return "";
-    return n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
-  };
-  const rowBadge = (onFile: string, required: string, label: string) => {
-    if (!onFile && !required) return "";
-    const onFileFmt = fmt(onFile);
-    const requiredFmt = fmt(required);
-    const onFileN = parseInt(String(onFile || "").replace(/[^0-9]/g, ""), 10) || 0;
-    const requiredN = parseInt(String(required || "").replace(/[^0-9]/g, ""), 10) || 0;
-    let status = "";
-    if (requiredN > 0 && onFileN >= requiredN) {
-      status = `<span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ FILED</span>`;
-    } else if (requiredN > 0 && onFileN === 0) {
-      status = `<span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NOT ON FILE</span>`;
-    } else if (requiredN > 0 && onFileN > 0 && onFileN < requiredN) {
-      status = `<span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ UNDERINSURED</span>`;
-    }
-    const valText = [
-      onFileFmt ? `On file: <strong>${onFileFmt}</strong>` : "",
-      requiredFmt ? `Required: ${requiredFmt}` : "",
-    ].filter(Boolean).join(" &nbsp;·&nbsp; ") || "—";
-    return `<div class="f"><div class="lbl">${label}</div><div class="val">${valText}${status}</div></div>`;
-  };
-  return `<div class="sec"><div class="sec-hdr">🛡️ Insurance Filings (FMCSA)</div><div class="sec-body"><div class="grid">
-${rowBadge(f.bipdInsuranceOnFile, f.bipdInsuranceRequired || f.bipdRequiredAmount, "Liability (BIPD)")}
-${rowBadge(f.cargoInsuranceOnFile, f.cargoInsuranceRequired, "Cargo Insurance")}
-${rowBadge(f.bondInsuranceOnFile, f.bondInsuranceRequired, "Broker Bond")}
-</div></div></div>`;
-})()}
-
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  ADDRESS LOCATION VERIFICATION (Google Maps — Street View + Aerial)     -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- ── CARRIER ADDRESS LOOKUP (Google Maps) ── -->
 ${(() => {
   const gKey = process.env.GOOGLE_MAPS_API_KEY
@@ -634,17 +592,59 @@ ${(() => {
   </div></div>`;
 })()}
 
-<!-- ── SIGNATURE ── -->
-<div class="sec"><div class="sec-hdr">✍️ Agreement &amp; Signature</div><div class="sec-body"><div class="grid">
-<div class="f"><div class="lbl">Signed By</div><div class="val">${sig.signerName as string || "—"}</div></div>
-<div class="f"><div class="lbl">Title</div><div class="val">${sig.signerTitle as string || "—"}</div></div>
-<div class="f"><div class="lbl">Date Signed</div><div class="val">${today}</div></div>
-<div class="f"><div class="lbl">IP Address</div><div class="val" style="font-family:monospace;font-size:12px">${ipAddress}</div></div>
-${geoInfo.city || geoInfo.region ? `<div class="f"><div class="lbl">Signed From</div><div class="val"><strong>${[geoInfo.city, geoInfo.region].filter(Boolean).join(", ")}</strong>${geoInfo.country ? ` &nbsp;(${geoInfo.country})` : ""}</div></div>` : ""}
-${geoInfo.isp ? `<div class="f"><div class="lbl">Internet Provider</div><div class="val"><strong>${geoInfo.isp}</strong></div></div>` : ""}
-${geoInfo.mobile ? `<div class="f"><div class="lbl">Mobile Device</div><div class="val">${geoInfo.mobile}</div></div>` : ""}
-${geoInfo.proxy && geoInfo.proxy !== "No" ? `<div class="f" style="grid-column:1/-1"><div class="lbl">⚠ Proxy / VPN</div><div class="val" style="color:#CC1B1B;font-weight:700">${geoInfo.proxy} — Signed via proxy or VPN</div></div>` : ""}
-</div></div></div>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  SUBMISSION ORIGIN (IP + Location) — directly below address block       -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div style="margin-bottom:22px;padding:14px 18px;background:#18181b;border-radius:10px;color:#ffffff;font-size:14px;line-height:1.6">
+  <div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#a1a1aa;margin-bottom:6px">🌐 Submission Origin</div>
+  <div>
+    <strong style="color:#ffffff;font-size:15px">${ipAddress || "—"}</strong>
+    ${(geoInfo.city || geoInfo.region) ? ` &nbsp;·&nbsp; <span style="color:#ffffff">${[geoInfo.city, geoInfo.region].filter(Boolean).join(", ")}${geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}
+    ${geoInfo.isp ? ` &nbsp;·&nbsp; <span style="color:#d4d4d8">${geoInfo.isp}</span>` : ""}
+    ${geoInfo.proxy && geoInfo.proxy !== "No" ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">🚩 PROXY/VPN DETECTED</strong>` : ""}
+    ${geoInfo.mobile ? ` &nbsp;·&nbsp; <span style="color:#d4d4d8">📱 ${geoInfo.mobile}</span>` : ""}
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  SECTION 2: ALERTS                                                       -->
+<!--  Red/yellow issues get called out here; all-clear shows green checks    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <div class="sec-hdr" style="${failCount > 0 ? "background:#fff5f5;color:#CC1B1B;border-color:#CC1B1B" : warnCount > 0 ? "background:#fff8ed;color:#e07000;border-color:#e07000" : "background:#edfaf3;color:#22a355;border-color:#22a355"}">
+    ${failCount > 0 ? "⚠ Alerts — Action Required" : warnCount > 0 ? "⚠ Alerts — Needs Review" : "✓ Alerts — All Clear"}
+    <span style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em">
+      ${okCount > 0 ? `<span style="color:#22a355">${okCount} passed</span>` : ""}
+      ${warnCount > 0 ? ` &nbsp;·&nbsp; <span style="color:#e07000">${warnCount} warning${warnCount === 1 ? "" : "s"}</span>` : ""}
+      ${failCount > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B">${failCount} issue${failCount === 1 ? "" : "s"}</span>` : ""}
+    </span>
+  </div>
+  <div class="sec-body" style="padding:14px 20px">
+    <ul class="alert-list">
+      ${alerts.map(a => {
+        const bg = a.level === "ok" ? "#22a355" : a.level === "warn" ? "#e07000" : "#CC1B1B";
+        const ic = a.level === "ok" ? "✓" : a.level === "warn" ? "!" : "✗";
+        const col = a.level === "ok" ? "#166534" : a.level === "warn" ? "#92400e" : "#991b1b";
+        return `<li class="alert-item"><span class="alert-icon" style="background:${bg}">${ic}</span><span style="color:${col};font-weight:${a.level === "ok" ? 500 : 600}">${a.label}</span></li>`;
+      }).join("")}
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  SECTION 3: DOCUMENT STATUS                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <div class="sec-hdr">📋 Document Status</div>
+  <table class="doc-list">
+    ${checkRow(agreementSigned, "Carrier Agreement Signed", agreementSigned ? `Signed by ${sig.signerName as string}${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""}` : "Not signed")}
+    ${checkRow(wcOk, wcLabel, !wcOk ? "Workers comp documentation missing" : undefined)}
+    ${checkRow(w9Ok, w9Label, !w9Ok ? "W-9 not provided" : undefined)}
+    ${checkRow(coiUploaded ? true : coiAgentNotified ? "warn" : false, coiLabel, coiDetail ?? (!coiUploaded && !coiAgentNotified ? "Certificate of insurance not received" : undefined))}
+  </table>
+</div>
+
+<div class="pdf-note">📎 <strong>Two PDFs attached:</strong> Onboarding Packet (carrier profile, workers comp, signed agreement) &nbsp;·&nbsp; Supporting Documents (uploaded files, processed &amp; compressed)</div>
 
 <!-- ── THANK YOU FOOTER ── -->
 <div style="margin:28px 0 0;padding:20px 24px;background:linear-gradient(135deg,#fafafa 0%,#f4f4f5 100%);border:1px solid #e4e4e7;border-radius:10px">
