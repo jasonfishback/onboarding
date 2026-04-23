@@ -31,6 +31,15 @@ export async function GET(req: NextRequest) {
 
     if (!c) return NextResponse.json({ carrier: null });
 
+    // TEMP DEBUG: surface all top-level keys + any containing 'insp' or 'crash'
+    const _rawKeys = Object.keys(c).sort();
+    const _inspFields: Record<string, unknown> = {};
+    for (const k of _rawKeys) {
+      if (/insp|crash|oos|out.?of.?service|total/i.test(k)) {
+        _inspFields[k] = c[k];
+      }
+    }
+
     // Build MC# from prefix+docketNumber, or fall back to value for MC lookups
     let mc = c.prefix && c.docketNumber
       ? `${c.prefix}${c.docketNumber}`
@@ -219,6 +228,8 @@ export async function GET(req: NextRequest) {
         // Cargo/commodity carried — pulled from /cargo-carried endpoint above
         cargoCarried: cargoList,
         source: "fmcsa",
+        _rawKeys,
+        _inspFields,
       },
     });
   } catch (err) {
