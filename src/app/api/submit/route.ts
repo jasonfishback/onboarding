@@ -8,32 +8,69 @@ import { getSessionFiles } from "@/app/api/upload/route";
 
 export const runtime = "nodejs";
 
-// Classify a US phone number into Mobile / Landline / VoIP / Toll-free
-// Uses libphonenumber's getType() — works offline, no API key needed
-function detectPhoneType(phoneStr: string): { type: string; color: string; badge: string } | null {
+// Classify a US phone number into Mobile / Landline / VoIP / Toll-free.
+// Strategy: Try Numverify first (real telecom carrier data, 100 free/month),
+// fall back to libphonenumber-js (offline, 100% free, less accurate for US).
+async function detectPhoneType(phoneStr: string): Promise<{ type: string; color: string; badge: string; carrier?: string; source: string } | null> {
   if (!phoneStr) return null;
+  const digits = phoneStr.replace(/[^0-9]/g, "");
+  if (digits.length < 10) return null;
+
+  // ── Primary: Numverify (accurate real-time carrier lookup) ──
+  const numverifyKey = process.env.NUMVERIFY_API_KEY;
+  if (numverifyKey) {
+    try {
+      const numverifyUrl = `http://apilayer.net/api/validate?access_key=${numverifyKey}&number=${digits}&country_code=US&format=1`;
+      const res = await fetch(numverifyUrl, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json() as {
+          valid?: boolean;
+          line_type?: string;
+          carrier?: string;
+          error?: { code: number; info: string };
+        };
+        // If Numverify returned a line_type, use it
+        if (data.valid === false) {
+          return { type: "Invalid", color: "#CC1B1B", badge: "⚠ INVALID", carrier: data.carrier, source: "numverify" };
+        }
+        if (data.line_type) {
+          const lt = data.line_type.toLowerCase();
+          const carrier = data.carrier || undefined;
+          // Numverify line_type values: mobile, landline, special_services, toll_free, premium_rate, satellite, paging, pager, voip
+          if (lt === "mobile") return { type: "Mobile", color: "#22a355", badge: "📱 MOBILE", carrier, source: "numverify" };
+          if (lt === "landline") return { type: "Landline", color: "#0066cc", badge: "☎ LANDLINE", carrier, source: "numverify" };
+          if (lt === "toll_free") return { type: "Toll-Free", color: "#8a2be2", badge: "📞 TOLL-FREE", carrier, source: "numverify" };
+          if (lt === "voip") return { type: "VoIP", color: "#e07000", badge: "🌐 VoIP", carrier, source: "numverify" };
+          if (lt === "premium_rate") return { type: "Premium Rate", color: "#CC1B1B", badge: "⚠ PREMIUM RATE", carrier, source: "numverify" };
+          if (lt === "satellite") return { type: "Satellite", color: "#666", badge: "🛰 SATELLITE", carrier, source: "numverify" };
+        }
+        // If Numverify didn't recognize it OR we're out of quota (error returned), fall through to libphonenumber
+      }
+    } catch {
+      // Timeout or network error — fall through to libphonenumber
+    }
+  }
+
+  // ── Fallback: libphonenumber-js (offline, no API key) ──
   try {
-    const digits = phoneStr.replace(/[^0-9]/g, "");
-    if (digits.length < 10) return null;
     const parsed = parsePhoneNumberFromString(digits.length === 10 ? `+1${digits}` : `+${digits}`);
     if (!parsed || !parsed.isValid()) {
-      return { type: "Invalid", color: "#CC1B1B", badge: "⚠ INVALID" };
+      return { type: "Invalid", color: "#CC1B1B", badge: "⚠ INVALID", source: "libphonenumber" };
     }
     const type = parsed.getType();
-    // getType() returns: MOBILE, FIXED_LINE, FIXED_LINE_OR_MOBILE, TOLL_FREE, PREMIUM_RATE, SHARED_COST, VOIP, PERSONAL_NUMBER, PAGER, UAN, VOICEMAIL
     switch (type) {
       case "MOBILE":
-        return { type: "Mobile", color: "#22a355", badge: "📱 MOBILE" };
+        return { type: "Mobile", color: "#22a355", badge: "📱 MOBILE", source: "libphonenumber" };
       case "FIXED_LINE":
-        return { type: "Landline", color: "#0066cc", badge: "☎ LANDLINE" };
+        return { type: "Landline", color: "#0066cc", badge: "☎ LANDLINE", source: "libphonenumber" };
       case "FIXED_LINE_OR_MOBILE":
-        return { type: "Mobile/Landline", color: "#666", badge: "📞 MOBILE/LANDLINE" };
+        return { type: "Mobile/Landline", color: "#666", badge: "📞 MOBILE/LANDLINE", source: "libphonenumber" };
       case "TOLL_FREE":
-        return { type: "Toll-Free", color: "#8a2be2", badge: "📞 TOLL-FREE" };
+        return { type: "Toll-Free", color: "#8a2be2", badge: "📞 TOLL-FREE", source: "libphonenumber" };
       case "VOIP":
-        return { type: "VoIP", color: "#e07000", badge: "🌐 VoIP" };
+        return { type: "VoIP", color: "#e07000", badge: "🌐 VoIP", source: "libphonenumber" };
       case "PREMIUM_RATE":
-        return { type: "Premium Rate", color: "#CC1B1B", badge: "⚠ PREMIUM RATE" };
+        return { type: "Premium Rate", color: "#CC1B1B", badge: "⚠ PREMIUM RATE", source: "libphonenumber" };
       default:
         return null;
     }
@@ -43,7 +80,7 @@ function detectPhoneType(phoneStr: string): { type: string; color: string; badge
 }
 
 // ─── Email HTML builders ───────────────────────────────────────────────────
-function buildDispatchEmail(data: {
+async function buildDispatchEmail(data: {
   companyData: Record<string, unknown>;
   fmcsaData: Record<string, unknown> | null;
   docsData: Record<string, unknown> | null;
@@ -51,7 +88,7 @@ function buildDispatchEmail(data: {
   sigData: Record<string, unknown> | null;
   ipAddress: string;
   geoInfo: Record<string, string>;
-}): string {
+}): Promise<string> {
   const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo } = data;
   const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
   const mc = (companyData?.mc as string) || (fmcsaData?.mc as string) || "—";
@@ -59,6 +96,9 @@ function buildDispatchEmail(data: {
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
   const tt = (companyData?.trailerTypes as Record<string, boolean>) || {};
   const trailers = [tt.reefer && "Reefer", tt.van && "Dry Van", tt.flatbed && "Flatbed"].filter(Boolean).join(", ") || "—";
+
+  // Pre-compute phone type info (async — Numverify + libphonenumber fallback)
+  const phoneTypeInfo = await detectPhoneType((companyData?.phone as string) || "");
 
   // ── Document status logic ──
   const docs = (docsData || {}) as Record<string, unknown>;
@@ -236,20 +276,18 @@ ${(() => {
   const fmcsaPhone = ((fmcsaData?.phone as string) || "").replace(/[^0-9]/g, "");
   const display = (companyData?.phone as string) || "—";
   if (!userPhone) return display;
-  // Phone type badge (Mobile/Landline/VoIP/Toll-Free) via libphonenumber
-  const typeInfo = detectPhoneType(userPhone);
-  const typeBadge = typeInfo
-    ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${typeInfo.color};border:1px solid ${typeInfo.color}">${typeInfo.badge}</span>`
+  // Phone type badge (Mobile/Landline/VoIP/Toll-Free) — via Numverify → libphonenumber fallback
+  const typeBadge = phoneTypeInfo
+    ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${phoneTypeInfo.color};border:1px solid ${phoneTypeInfo.color}">${phoneTypeInfo.badge}${phoneTypeInfo.carrier ? ` · ${phoneTypeInfo.carrier}` : ""}</span>`
     : "";
   // Match/mismatch badge
-  let matchBadge = "";
   if (fmcsaPhone && userPhone === fmcsaPhone) {
-    matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+    const matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
     return `${display}${typeBadge}${matchBadge}`;
   }
   if (fmcsaPhone && userPhone !== fmcsaPhone) {
     const fmtFmcsa = fmcsaPhone.length === 10 ? `${fmcsaPhone.slice(0,3)}-${fmcsaPhone.slice(3,6)}-${fmcsaPhone.slice(6)}` : fmcsaPhone;
-    matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmtFmcsa}</span>`;
+    const matchBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmtFmcsa}</span>`;
     return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${typeBadge}${matchBadge}`;
   }
   return `${display}${typeBadge}`;
@@ -526,7 +564,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Send to dispatch ──
-    const htmlBody = buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo });
+    const htmlBody = await buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo });
     await resend.emails.send({
       from: FROM,
       to: ["setup@simonexpress.com"],
