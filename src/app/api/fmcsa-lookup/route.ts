@@ -91,7 +91,9 @@ export async function GET(req: NextRequest) {
     //   - Phone
     //   These come back in a public HTML snapshot at safer.fmcsa.dot.gov
     let saferPhone = "";
+    let saferEmail = "";
     let mailingStreet = "", mailingCity = "", mailingState = "", mailingZip = "";
+    let _saferLabels: Record<string, string> = {};
     if (c.dotNumber) {
       try {
         const saferRes = await fetch(
@@ -103,6 +105,13 @@ export async function GET(req: NextRequest) {
         );
         if (saferRes.ok) {
           const html = await saferRes.text();
+          // DEBUG: capture chunks around various labels to see what's available
+          for (const label of ["Phone", "Mailing", "Email", "E-mail", "Contact", "Officer", "Representative"]) {
+            const idx = html.search(new RegExp(label, "i"));
+            if (idx >= 0) {
+              _saferLabels[label] = html.slice(Math.max(0, idx - 40), idx + 250);
+            }
+          }
           // Phone format in SAFER HTML:
           //   <A class="querylabel" href="saferhelp.aspx#Phone">Phone:</A></TH>\r\n
           //          <TD class="queryfield" ...>\r\n       (801) 260-7010\r\n    &nbsp;</TD>
@@ -157,7 +166,7 @@ export async function GET(req: NextRequest) {
         state: c.phyState || "",
         zip: c.phyZipcode || "",
         phone: saferPhone || c.telephone || "",
-        email: c.emailAddress || "",
+        email: saferEmail || c.emailAddress || "",
         dot: String(c.dotNumber || ""),
         mc,
         type: "Motor Carrier",
@@ -191,6 +200,7 @@ export async function GET(req: NextRequest) {
         // Cargo/commodity carried (array of cargo types)
         cargoCarried: Array.isArray(c.carrier?.cargoCarried) ? c.carrier.cargoCarried : [],
         source: "fmcsa",
+        _saferLabels,
       },
     });
   } catch (err) {
