@@ -31,6 +31,21 @@ export async function GET(req: NextRequest) {
 
     if (!c) return NextResponse.json({ carrier: null });
 
+    // Log the full carrier object to investigate which fields are actually populated
+    console.log("[fmcsa] carrier fields:", JSON.stringify({
+      legalName: c.legalName,
+      telephone: c.telephone,
+      phone: c.phone,
+      phoneNumber: c.phoneNumber,
+      emailAddress: c.emailAddress,
+      totalPowerUnits: c.totalPowerUnits,
+      totalDrivers: c.totalDrivers,
+      dotNumber: c.dotNumber,
+      safetyRating: c.safetyRating,
+      carrierOperation: c.carrierOperation,
+      allKeys: Object.keys(c),
+    }, null, 2));
+
     // Build MC# from prefix+docketNumber, or fall back to value for MC lookups
     let mc = c.prefix && c.docketNumber
       ? `${c.prefix}${c.docketNumber}`
@@ -70,6 +85,7 @@ export async function GET(req: NextRequest) {
         );
         if (officerRes.ok) {
           const officerJson = await officerRes.json();
+          console.log("[fmcsa] officer response:", JSON.stringify(officerJson).slice(0, 500));
           // Response can be a single object or array; handle both
           const officerContent = officerJson?.content;
           const officer = Array.isArray(officerContent) ? officerContent[0] : officerContent;
