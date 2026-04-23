@@ -227,8 +227,7 @@ export async function buildDispatchEmail(data: {
   const alerts: { level: "ok" | "warn" | "fail"; label: string }[] = [];
   // Documents
   alerts.push({ level: agreementSigned ? "ok" : "fail", label: agreementSigned ? "Carrier agreement signed" : "Carrier agreement NOT signed" });
-  alerts.push({ level: wcOk ? "ok" : "fail", label: wcOk ? "Workers comp documented" : "Workers comp missing" });
-  alerts.push({ level: w9Ok ? "ok" : "fail", label: w9Ok ? "W-9 received" : "W-9 missing" });
+  // Workers Comp and W-9 are already shown in the Document Status section below, no need to duplicate in Alerts
   // Intrastate warning — DOT# present but no MC# authority on file
   if (likelyIntrastate) {
     alerts.push({ level: "warn", label: "Possible intrastate-only carrier — please verify" });
