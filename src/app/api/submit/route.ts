@@ -140,6 +140,24 @@ ${(() => {
 </div>`;
 })()}
 
+${(() => {
+  const rating = (fmcsaData?.safetyRating as string) || "";
+  if (!rating) return "";
+  const r = rating.toLowerCase();
+  if (r.includes("conditional") || r.includes("unsatisfactory")) {
+    const label = r.includes("unsatisfactory") ? "UNSATISFACTORY" : "CONDITIONAL";
+    return `<div style="background:#CC1B1B;padding:14px 24px;border-bottom:3px solid #8b0000;text-align:center">
+  <div style="font-size:20px;font-weight:900;color:white;letter-spacing:1px">
+    ⚠️ &nbsp;WARNING: ${label} SAFETY RATING&nbsp; ⚠️
+  </div>
+  <div style="color:#ffe0e0;font-size:13px;font-weight:700;margin-top:4px">
+    This carrier has a <span style="color:white;text-decoration:underline">${rating.toUpperCase()}</span> FMCSA safety rating — review carefully before approval
+  </div>
+</div>`;
+  }
+  return "";
+})()}
+
 <div class="body">
 
 <!-- ── DOCUMENT CHECKLIST ── -->

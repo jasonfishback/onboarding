@@ -60,6 +60,31 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Fetch officer/registrant name (useful to pre-fill Primary Contact)
+    let officerName = "";
+    if (c.dotNumber) {
+      try {
+        const officerRes = await fetch(
+          `https://mobile.fmcsa.dot.gov/qc/services/carriers/${c.dotNumber}/officers?webKey=${key}`,
+          { signal: AbortSignal.timeout(6000) }
+        );
+        if (officerRes.ok) {
+          const officerJson = await officerRes.json();
+          // Response can be a single object or array; handle both
+          const officerContent = officerJson?.content;
+          const officer = Array.isArray(officerContent) ? officerContent[0] : officerContent;
+          if (officer) {
+            // Common fields: fullName, firstName, middleName, lastName, name
+            officerName = officer.fullName || officer.name ||
+              [officer.firstName, officer.middleName, officer.lastName].filter(Boolean).join(" ").trim() ||
+              "";
+          }
+        }
+      } catch {
+        // Non-critical — some carriers don't have officer records exposed
+      }
+    }
+
     return NextResponse.json({
       carrier: {
         name: c.legalName || c.dbaName || "",
@@ -74,6 +99,7 @@ export async function GET(req: NextRequest) {
         mc,
         type: "Motor Carrier",
         status: c.allowedToOperate === "Y" ? "Active" : "Inactive",
+        officerName,
         // ── Additional fields from FMCSA census ──
         truckCount: c.totalPowerUnits != null ? String(c.totalPowerUnits) : "",
         driverCount: c.totalDrivers != null ? String(c.totalDrivers) : "",

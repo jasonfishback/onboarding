@@ -140,7 +140,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
     address: prefill?.address || "", city: prefill?.city || "",
     state: prefill?.state || "", zip: prefill?.zip || "",
     phone: prefill?.phone || "", email: prefill?.email || "",
-    contactName: "", contactTitle: "",
+    contactName: prefill?.officerName || "", contactTitle: "",
     mc: prefill?.mc || "", dot: prefill?.dot || "",
     ein: "",
     truckCount: prefill?.truckCount || "",
