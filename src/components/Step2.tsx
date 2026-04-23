@@ -184,18 +184,69 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       )}
 
       {/* FMCSA Safety Snapshot — only shown when we have data */}
-      {prefill && (prefill.safetyRating || prefill.outOfService === "Yes" || prefill.operationClass) && (
+      {prefill && (prefill.safetyRating || prefill.outOfService === "Yes" || prefill.operationClass || prefill.status || prefill.bipdInsuranceOnFile) && (
         <div style={{ background: "#f8f8f8", border: "1.5px solid " + DARK, borderRadius: 2, padding: "10px 14px", marginBottom: 18, fontSize: 12, fontFamily: "DM Sans" }}>
           <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: ".08em", color: "#555", marginBottom: 6 }}>FMCSA SNAPSHOT</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "6px 16px" }}>
             {prefill.outOfService === "Yes" && (
               <div style={{ color: "#CC1B1B", fontWeight: 700 }}>⚠ Out of Service</div>
             )}
-            {prefill.safetyRating && <div><strong>Safety Rating:</strong> {prefill.safetyRating}</div>}
+            {prefill.status && (
+              <div>
+                <strong>Authority:</strong>{" "}
+                <span style={{ color: prefill.status === "Active" ? "#22a355" : "#CC1B1B", fontWeight: 700 }}>
+                  {prefill.status}
+                </span>
+              </div>
+            )}
+            {prefill.safetyRating ? (
+              <div>
+                <strong>Safety Rating:</strong>{" "}
+                <span style={{
+                  color: /conditional|unsatisfactory/i.test(prefill.safetyRating) ? "#CC1B1B" : "#22a355",
+                  fontWeight: 700
+                }}>
+                  {prefill.safetyRating}
+                </span>
+                {prefill.safetyRatingDate && <span style={{ color: "#888" }}> ({prefill.safetyRatingDate})</span>}
+              </div>
+            ) : (
+              <div><strong>Safety Rating:</strong> <span style={{ color: "#888" }}>Not Rated</span></div>
+            )}
             {prefill.operationClass && <div><strong>Operation:</strong> {prefill.operationClass}</div>}
             {prefill.truckCount && <div><strong>Power Units:</strong> {prefill.truckCount}</div>}
             {prefill.driverCount && <div><strong>Drivers:</strong> {prefill.driverCount}</div>}
-            {prefill.hazmatFlag === "Yes" && <div><strong>Hazmat:</strong> Yes</div>}
+            {prefill.hazmatFlag === "Yes" && <div style={{ color: "#CC1B1B", fontWeight: 700 }}>⚠ Hazmat Authorized</div>}
+            {(() => {
+              const onFile = parseInt(String(prefill.bipdInsuranceOnFile || "").replace(/[^0-9]/g, ""), 10) || 0;
+              const required = parseInt(String(prefill.bipdRequiredAmount || "").replace(/[^0-9]/g, ""), 10) || 0;
+              if (!onFile && !required) return null;
+              const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
+              const ok = required > 0 ? onFile >= required : onFile > 0;
+              return (
+                <div>
+                  <strong>Liability Ins:</strong>{" "}
+                  <span style={{ color: ok ? "#22a355" : "#CC1B1B", fontWeight: 700 }}>
+                    {onFile > 0 ? fmt(onFile) : "Not on file"}
+                  </span>
+                  {required > 0 && <span style={{ color: "#888" }}> / req {fmt(required)}</span>}
+                </div>
+              );
+            })()}
+            {(() => {
+              const onFile = parseInt(String(prefill.cargoInsuranceOnFile || "").replace(/[^0-9]/g, ""), 10) || 0;
+              const required = String(prefill.cargoInsuranceRequired || "").toUpperCase() === "Y";
+              if (!onFile && !required) return null;
+              const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
+              return (
+                <div>
+                  <strong>Cargo Ins:</strong>{" "}
+                  <span style={{ color: onFile > 0 ? "#22a355" : required ? "#CC1B1B" : "#888", fontWeight: onFile > 0 || required ? 700 : 400 }}>
+                    {onFile > 0 ? fmt(onFile) : required ? "Not on file" : "Not required"}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
