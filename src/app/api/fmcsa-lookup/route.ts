@@ -31,15 +31,6 @@ export async function GET(req: NextRequest) {
 
     if (!c) return NextResponse.json({ carrier: null });
 
-    // TEMP DEBUG: surface all top-level keys + any containing 'insp' or 'crash'
-    const _rawKeys = Object.keys(c).sort();
-    const _inspFields: Record<string, unknown> = {};
-    for (const k of _rawKeys) {
-      if (/insp|crash|oos|out.?of.?service|total/i.test(k)) {
-        _inspFields[k] = c[k];
-      }
-    }
-
     // Build MC# from prefix+docketNumber, or fall back to value for MC lookups
     let mc = c.prefix && c.docketNumber
       ? `${c.prefix}${c.docketNumber}`
@@ -227,9 +218,25 @@ export async function GET(req: NextRequest) {
         // the cargo category names so downstream code can do simple `.includes()` checks.
         // Cargo/commodity carried — pulled from /cargo-carried endpoint above
         cargoCarried: cargoList,
+        // ── Inspection history (past 24 months, per FMCSA standard reporting) ──
+        vehicleInspections: c.vehicleInsp != null ? String(c.vehicleInsp) : "",
+        vehicleOosInspections: c.vehicleOosInsp != null ? String(c.vehicleOosInsp) : "",
+        vehicleOosRate: c.vehicleOosRate != null ? Number(c.vehicleOosRate).toFixed(1) : "",
+        vehicleOosRateNational: c.vehicleOosRateNationalAverage ? String(c.vehicleOosRateNationalAverage) : "",
+        driverInspections: c.driverInsp != null ? String(c.driverInsp) : "",
+        driverOosInspections: c.driverOosInsp != null ? String(c.driverOosInsp) : "",
+        driverOosRate: c.driverOosRate != null ? Number(c.driverOosRate).toFixed(1) : "",
+        driverOosRateNational: c.driverOosRateNationalAverage ? String(c.driverOosRateNationalAverage) : "",
+        hazmatInspections: c.hazmatInsp != null ? String(c.hazmatInsp) : "",
+        hazmatOosInspections: c.hazmatOosInsp != null ? String(c.hazmatOosInsp) : "",
+        // ── Crash history (past 24 months) ──
+        totalCrashes: c.crashTotal != null ? String(c.crashTotal) : "",
+        fatalCrashes: c.fatalCrash != null ? String(c.fatalCrash) : "",
+        injuryCrashes: c.injCrash != null ? String(c.injCrash) : "",
+        towawayCrashes: c.towawayCrash != null ? String(c.towawayCrash) : "",
+        // Snapshot date — when FMCSA last updated their safety record
+        snapshotDate: c.snapshotDate ? String(c.snapshotDate) : "",
         source: "fmcsa",
-        _rawKeys,
-        _inspFields,
       },
     });
   } catch (err) {

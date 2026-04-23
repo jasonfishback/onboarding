@@ -287,6 +287,32 @@ export async function buildDispatchEmail(data: {
   if (ratingLower === "unsatisfactory") alerts.push({ level: "fail", label: "FMCSA Safety Rating: Unsatisfactory" });
   // Out of service
   if (fmcsaData?.outOfService === "Yes") alerts.push({ level: "fail", label: "Carrier is OUT OF SERVICE" });
+  // Inspection history — no inspections is suspicious, high OOS rate is a red flag
+  const vehicleInsp = parseInt(String(fmcsaData?.vehicleInspections || "0"), 10);
+  const driverInsp = parseInt(String(fmcsaData?.driverInspections || "0"), 10);
+  const totalInsp = vehicleInsp + driverInsp;
+  const vehicleOosRate = parseFloat(String(fmcsaData?.vehicleOosRate || "0"));
+  const vehicleOosNational = parseFloat(String(fmcsaData?.vehicleOosRateNational || "0"));
+  const driverOosRate = parseFloat(String(fmcsaData?.driverOosRate || "0"));
+  const driverOosNational = parseFloat(String(fmcsaData?.driverOosRateNational || "0"));
+  if (fmcsaData && totalInsp === 0) {
+    alerts.push({ level: "warn", label: "No vehicle or driver inspections on file — verify carrier activity" });
+  }
+  // Flag when OOS rate significantly exceeds national average (by 10+ percentage points)
+  if (vehicleOosRate > 0 && vehicleOosNational > 0 && vehicleOosRate > vehicleOosNational + 10) {
+    alerts.push({ level: "warn", label: `Vehicle OOS rate ${vehicleOosRate.toFixed(1)}% exceeds national avg ${vehicleOosNational.toFixed(1)}%` });
+  }
+  if (driverOosRate > 0 && driverOosNational > 0 && driverOosRate > driverOosNational + 5) {
+    alerts.push({ level: "warn", label: `Driver OOS rate ${driverOosRate.toFixed(1)}% exceeds national avg ${driverOosNational.toFixed(1)}%` });
+  }
+  // Crashes — any fatal crash is serious; multiple crashes warrant review
+  const fatalCrashes = parseInt(String(fmcsaData?.fatalCrashes || "0"), 10);
+  const totalCrashes = parseInt(String(fmcsaData?.totalCrashes || "0"), 10);
+  if (fatalCrashes > 0) {
+    alerts.push({ level: "fail", label: `${fatalCrashes} fatal crash${fatalCrashes === 1 ? "" : "es"} reported (past 24 mo)` });
+  } else if (totalCrashes >= 3) {
+    alerts.push({ level: "warn", label: `${totalCrashes} crashes reported (past 24 mo)` });
+  }
   // Non-USA IP
   if (ipAddress && geoInfo.countryCode && geoInfo.countryCode !== "US") {
     alerts.push({ level: "fail", label: `Submission from outside USA (${geoInfo.country})` });
@@ -556,6 +582,61 @@ ${(() => {
         return insRow(f.bipdInsuranceOnFile, f.bipdInsuranceRequired || f.bipdRequiredAmount, "Liability (BIPD)")
           + insRow(f.cargoInsuranceOnFile, f.cargoInsuranceRequired, "Cargo Insurance")
           + insRow(f.bondInsuranceOnFile, f.bondInsuranceRequired, "Broker Bond");
+      })()}
+
+      <!-- Inspection History (FMCSA — past 24 months) -->
+      ${(() => {
+        const f = (fmcsaData || {}) as Record<string, string>;
+        const vInsp = parseInt(f.vehicleInspections || "0", 10);
+        const dInsp = parseInt(f.driverInspections || "0", 10);
+        const hInsp = parseInt(f.hazmatInspections || "0", 10);
+        const vOos = parseInt(f.vehicleOosInspections || "0", 10);
+        const dOos = parseInt(f.driverOosInspections || "0", 10);
+        const vOosRate = parseFloat(f.vehicleOosRate || "0");
+        const dOosRate = parseFloat(f.driverOosRate || "0");
+        const vOosNational = parseFloat(f.vehicleOosRateNational || "0");
+        const dOosNational = parseFloat(f.driverOosRateNational || "0");
+        const totalInsp = vInsp + dInsp + hInsp;
+        if (totalInsp === 0 && !f.vehicleInspections) return "";
+
+        // Helper: badge for how a carrier's OOS rate compares to national average
+        const rateBadge = (rate: number, national: number) => {
+          if (!rate || !national) return "";
+          const diff = rate - national;
+          const base = "display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700";
+          if (diff > 10) return ` <span style="${base};background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ HIGH — Nat'l: ${national.toFixed(1)}%</span>`;
+          if (diff > 5) return ` <span style="${base};background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ Nat'l: ${national.toFixed(1)}%</span>`;
+          return ` <span style="${base};background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ Nat'l: ${national.toFixed(1)}%</span>`;
+        };
+
+        const zeroInspAlert = totalInsp === 0
+          ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ NO INSPECTIONS ON FILE</span>`
+          : "";
+
+        let rows = `<div class="f" style="grid-column:1/-1"><div class="lbl">Vehicle Inspections (24 mo)</div><div class="val"><strong>${vInsp}</strong>${vOos > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B">${vOos} OOS</span>` : ""}${vInsp > 0 && vOosRate > 0 ? ` &nbsp;·&nbsp; OOS rate: <strong>${vOosRate.toFixed(1)}%</strong>${rateBadge(vOosRate, vOosNational)}` : ""}${zeroInspAlert}</div></div>`;
+        rows += `<div class="f" style="grid-column:1/-1"><div class="lbl">Driver Inspections (24 mo)</div><div class="val"><strong>${dInsp}</strong>${dOos > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B">${dOos} OOS</span>` : ""}${dInsp > 0 && dOosRate > 0 ? ` &nbsp;·&nbsp; OOS rate: <strong>${dOosRate.toFixed(1)}%</strong>${rateBadge(dOosRate, dOosNational)}` : ""}</div></div>`;
+        if (hInsp > 0) {
+          const hOos = parseInt(f.hazmatOosInspections || "0", 10);
+          rows += `<div class="f" style="grid-column:1/-1"><div class="lbl">Hazmat Inspections (24 mo)</div><div class="val"><strong>${hInsp}</strong>${hOos > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B">${hOos} OOS</span>` : ""}</div></div>`;
+        }
+        return rows;
+      })()}
+
+      <!-- Crash History (FMCSA — past 24 months) -->
+      ${(() => {
+        const f = (fmcsaData || {}) as Record<string, string>;
+        const total = parseInt(f.totalCrashes || "0", 10);
+        const fatal = parseInt(f.fatalCrashes || "0", 10);
+        const injury = parseInt(f.injuryCrashes || "0", 10);
+        const towaway = parseInt(f.towawayCrashes || "0", 10);
+        if (total === 0 && !f.totalCrashes) return "";
+        const color = fatal > 0 ? "#CC1B1B" : total >= 3 ? "#e07000" : "#22a355";
+        const parts: string[] = [];
+        if (fatal > 0) parts.push(`<strong style="color:#CC1B1B">${fatal} fatal</strong>`);
+        if (injury > 0) parts.push(`${injury} injury`);
+        if (towaway > 0) parts.push(`${towaway} tow-away`);
+        const breakdown = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
+        return `<div class="f" style="grid-column:1/-1"><div class="lbl">Crashes (24 mo)</div><div class="val"><strong style="color:${color}">${total}</strong>${breakdown}</div></div>`;
       })()}
 
       <!-- Agreement & Signature -->
