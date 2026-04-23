@@ -4,6 +4,7 @@ import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { generateOnboardingPDF } from "@/lib/generatePdf";
 import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
+import { validateEmail } from "@/lib/validateEmail";
 import { getSessionFiles } from "@/app/api/upload/route";
 
 export const runtime = "nodejs";
@@ -107,6 +108,15 @@ async function buildDispatchEmail(data: {
   const sameAsPrimary = primaryDigits && primaryDigits === dispatchDigits;
   const phoneTypeInfo = await detectPhoneType(primaryPhone);
   const dispatchPhoneTypeInfo = sameAsPrimary ? phoneTypeInfo : (dispatchPhone ? await detectPhoneType(dispatchPhone) : null);
+
+  // Pre-compute email validation (format + MX + disposable check) — parallel calls
+  const primaryEmail = (companyData?.email as string) || "";
+  const dispatchEmail = dispatch.email || "";
+  const sameEmail = primaryEmail && primaryEmail.toLowerCase() === dispatchEmail.toLowerCase();
+  const [primaryEmailValidation, dispatchEmailValidation] = await Promise.all([
+    primaryEmail ? validateEmail(primaryEmail) : Promise.resolve(null),
+    sameEmail ? Promise.resolve(null) : (dispatchEmail ? validateEmail(dispatchEmail) : Promise.resolve(null)),
+  ]);
 
   // ── Document status logic ──
   const docs = (docsData || {}) as Record<string, unknown>;
@@ -312,17 +322,53 @@ ${(() => {
     : "";
   return `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${typeBadge}</div></div>`;
 })()}
-<div class="f"><div class="lbl">Email</div><div class="val">${(() => {
+<div class="f"><div class="lbl">Primary Email</div><div class="val">${(() => {
   const userEmail = ((companyData?.email as string) || "").trim().toLowerCase();
   const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
   const display = (companyData?.email as string) || "—";
   if (!userEmail) return display;
-  if (!fmcsaEmail) return display;
-  if (userEmail === fmcsaEmail) {
-    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+  // Email validation badge (format + MX + disposable)
+  let validBadge = "";
+  if (primaryEmailValidation) {
+    const v = primaryEmailValidation;
+    if (v.valid) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ VALID</span>`;
+    } else if (v.disposable) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ DISPOSABLE</span>`;
+    } else if (!v.format) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ INVALID FORMAT</span>`;
+    } else if (!v.hasMx) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NO MAIL SERVER</span>`;
+    }
   }
-  return `<span style="color:#CC1B1B;font-weight:700">${display}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmcsaEmail}</span>`;
+  // FMCSA match badge
+  if (!fmcsaEmail) return `${display}${validBadge}`;
+  if (userEmail === fmcsaEmail) {
+    return `${display}${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+  }
+  return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmcsaEmail}</span>`;
 })()}</div></div>
+${(() => {
+  // Dispatch Email row — only show if provided
+  if (!dispatchEmail) return "";
+  if (sameEmail) {
+    return `<div class="f"><div class="lbl">Dispatch Email</div><div class="val"><span style="color:#888">${dispatchEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`;
+  }
+  let validBadge = "";
+  if (dispatchEmailValidation) {
+    const v = dispatchEmailValidation;
+    if (v.valid) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ VALID</span>`;
+    } else if (v.disposable) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ DISPOSABLE</span>`;
+    } else if (!v.format) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ INVALID FORMAT</span>`;
+    } else if (!v.hasMx) {
+      validBadge = ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NO MAIL SERVER</span>`;
+    }
+  }
+  return `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${validBadge}</div></div>`;
+})()}
 <div class="f"><div class="lbl">Primary Contact</div><div class="val">${(companyData?.contactName as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Quick Pay</div><div class="val">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
 <div class="f"><div class="lbl">Factoring</div><div class="val">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
