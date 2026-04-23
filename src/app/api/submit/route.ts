@@ -233,6 +233,17 @@ export async function buildDispatchEmail(data: {
   if (likelyIntrastate) {
     alerts.push({ level: "warn", label: "Possible intrastate-only carrier — please verify" });
   }
+  // Refrigerated Food cargo check — Simon Express does mostly reefer freight, so we want to
+  // flag carriers who haven't declared Refrigerated Food as a cargo type on their FMCSA record.
+  const cargoArr = (fmcsaData?.cargoCarried as string[]) || [];
+  const hasRefrigeratedFood = cargoArr.some(c =>
+    /refrigerated\s*food/i.test(c)
+  );
+  if (cargoArr.length === 0) {
+    alerts.push({ level: "warn", label: "No cargo types declared with FMCSA — please verify" });
+  } else if (!hasRefrigeratedFood) {
+    alerts.push({ level: "warn", label: "Refrigerated Food not listed in FMCSA cargo types — please verify" });
+  }
   alerts.push({
     level: coiUploaded ? "ok" : coiAgentNotified ? "warn" : "fail",
     label: coiUploaded ? "Certificate of insurance received" : coiAgentNotified ? "COI pending — agent notified" : "Certificate of insurance missing"
@@ -486,6 +497,24 @@ ${(() => {
       <div class="f"><div class="lbl">Power Units (Trucks)</div><div class="val">${(companyData?.truckCount as string) || "—"}${(fmcsaData?.truckCount && (fmcsaData.truckCount as string) !== (companyData?.truckCount as string)) ? ` <span style="color:#888;font-size:11px">(FMCSA: ${fmcsaData.truckCount as string})</span>` : ""}</div></div>
       <div class="f"><div class="lbl">Trailers</div><div class="val">${(companyData?.trailerCount as string) || "—"}</div></div>
       <div class="f" style="grid-column:1/-1"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
+      ${(() => {
+        // FMCSA-declared cargo types — list them all, highlighting whether Refrigerated Food is present
+        const cargoArr = (fmcsaData?.cargoCarried as string[]) || [];
+        if (cargoArr.length === 0) {
+          return `<div class="f" style="grid-column:1/-1"><div class="lbl">FMCSA Cargo Types</div><div class="val"><span style="color:#e07000;font-weight:600">⚠ None declared</span></div></div>`;
+        }
+        const hasReefer = cargoArr.some(c => /refrigerated\s*food/i.test(c));
+        const list = cargoArr.map(c => {
+          const isReefer = /refrigerated\s*food/i.test(c);
+          return isReefer
+            ? `<span style="background:#edfaf3;color:#22a355;padding:1px 6px;border-radius:6px;font-weight:700">${c}</span>`
+            : c;
+        }).join(", ");
+        const flag = !hasReefer
+          ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ NO REFRIGERATED FOOD</span>`
+          : "";
+        return `<div class="f" style="grid-column:1/-1"><div class="lbl">FMCSA Cargo Types</div><div class="val">${list}${flag}</div></div>`;
+      })()}
       ${(fmcsaData?.operationClass) ? `<div class="f"><div class="lbl">Operation Class</div><div class="val">${fmcsaData.operationClass as string}</div></div>` : ""}
       ${fmcsaData?.hazmatFlag === "Yes" ? `<div class="f"><div class="lbl">Hazmat</div><div class="val"><strong style="color:#CC1B1B">⚠ Yes</strong></div></div>` : ""}
 

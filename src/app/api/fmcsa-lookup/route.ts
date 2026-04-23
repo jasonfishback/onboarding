@@ -86,6 +86,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Fetch cargo-carried classifications (separate endpoint — not included in main carrier object)
+    // Returns array of { cargoClassDesc: "Refrigerated Food", cargoClassId: ... }
+    let cargoList: string[] = [];
+    if (c.dotNumber) {
+      try {
+        const cargoRes = await fetch(
+          `https://mobile.fmcsa.dot.gov/qc/services/carriers/${c.dotNumber}/cargo-carried?webKey=${key}`,
+          { signal: AbortSignal.timeout(6000) }
+        );
+        if (cargoRes.ok) {
+          const cargoJson = await cargoRes.json();
+          const items = cargoJson?.content;
+          if (Array.isArray(items)) {
+            cargoList = items
+              .map((item: { cargoClassDesc?: string; description?: string; cargoClassId?: string }) =>
+                item?.cargoClassDesc || item?.description || "")
+              .filter((s): s is string => !!s);
+          }
+        }
+      } catch {
+        // Non-critical — cargo data is optional
+      }
+    }
+
     // ── Scrape SAFER HTML for fields not in the QCMobile API ─────────────────
     //   - Physical + Mailing addresses
     //   - Phone
@@ -192,19 +216,8 @@ export async function GET(req: NextRequest) {
         // Cargo/commodity carried — FMCSA QCMobile returns this as an object of boolean flags
         // like { refrigeratedFood: "X", generalFreight: "X", ... }. We normalize to an array of
         // the cargo category names so downstream code can do simple `.includes()` checks.
-        cargoCarried: (() => {
-          const raw = c.cargoCarried ?? c.carrier?.cargoCarried ?? null;
-          if (!raw) return [];
-          if (Array.isArray(raw)) return raw;
-          if (typeof raw === "object") {
-            return Object.entries(raw)
-              .filter(([, v]) => v === "X" || v === "Y" || v === true || v === "true")
-              .map(([k]) => k);
-          }
-          return [];
-        })(),
-        // TEMP DEBUG — remove after confirming cargo field structure
-        _cargoRaw: c.cargoCarried ?? null,
+        // Cargo/commodity carried — pulled from /cargo-carried endpoint above
+        cargoCarried: cargoList,
         source: "fmcsa",
       },
     });
