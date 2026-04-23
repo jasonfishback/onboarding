@@ -632,6 +632,25 @@ ${geoInfo.mobile ? `<div class="f"><div class="lbl">Mobile Device</div><div clas
 ${geoInfo.proxy && geoInfo.proxy !== "No" ? `<div class="f" style="grid-column:1/-1"><div class="lbl">⚠ Proxy / VPN</div><div class="val" style="color:#CC1B1B;font-weight:700">${geoInfo.proxy} — Signed via proxy or VPN</div></div>` : ""}
 </div></div></div>
 
+<!-- ── THANK YOU FOOTER ── -->
+<div style="margin:28px 0 0;padding:20px 24px;background:linear-gradient(135deg,#fafafa 0%,#f4f4f5 100%);border:1px solid #e4e4e7;border-radius:10px">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td width="90" style="vertical-align:middle;padding-right:16px">
+        <img src="https://setup.simonexpress.com/youdidthat.png" alt="You did that!" width="90" style="display:block;width:90px;max-width:90px;height:auto" />
+      </td>
+      <td style="vertical-align:middle">
+        <div style="font-size:13px;line-height:1.5;color:#27272a">
+          By checking all the alerts and properly vetting carriers you may have stopped potential fraud.
+          <div style="margin-top:6px;font-size:12px;color:#71717a;font-style:italic">
+            Thank you from the management at Simon Express.
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
 </div>
 <div class="ftr">
   Simon Express Logistics LLC &nbsp;·&nbsp; PO Box 1582, Riverton, UT 84065 &nbsp;·&nbsp; 801-260-7010
