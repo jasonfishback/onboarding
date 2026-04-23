@@ -103,8 +103,8 @@ export async function GET(req: NextRequest) {
         );
         if (saferRes.ok) {
           const html = await saferRes.text();
-          // The SAFER page uses <TH>Label:</TH><TD>value</TD> rows.
-          // Field labels we want: "Phone:", "Mailing Address:"
+          console.log("[safer] html length:", html.length, "first 300:", html.slice(0, 300));
+          console.log("[safer] has Phone:", html.includes("Phone:"), "has Mailing:", html.includes("Mailing Address:"));
           const cleanHtml = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
           const phoneMatch = cleanHtml.match(/Phone:\s*<\/TH>\s*<TD[^>]*>\s*([^<]+)/i);
           if (phoneMatch) {
@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
           }
           // Mailing Address TD may have multi-line content (street + city/state/zip)
           const mailMatch = cleanHtml.match(/Mailing Address:\s*<\/TH>\s*<TD[^>]*>\s*([^<]+(?:\n[^<]+)*)/i);
+          console.log("[safer] mailMatch:", mailMatch ? mailMatch[1].slice(0, 100) : "NONE");
           if (mailMatch) {
             const addrLines = mailMatch[1].split("\n").map(l => l.trim()).filter(Boolean);
             if (addrLines.length >= 2) {
@@ -129,7 +130,8 @@ export async function GET(req: NextRequest) {
             }
           }
         }
-      } catch {
+      } catch (e) {
+        console.log("[safer] fetch failed:", String(e));
         // Non-critical — SAFER scrape timeout is fine, we'll just skip these fields
       }
     }
