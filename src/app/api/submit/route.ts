@@ -282,6 +282,10 @@ export async function buildDispatchEmail(data: {
   if (ratingLower === "unsatisfactory") alerts.push({ level: "fail", label: "FMCSA Safety Rating: Unsatisfactory" });
   // Out of service
   if (fmcsaData?.outOfService === "Yes") alerts.push({ level: "fail", label: "Carrier is OUT OF SERVICE" });
+  // Inactive authority — carrier's operating authority is not active
+  if (fmcsaData?.status && fmcsaData.status !== "Active" && fmcsaData?.outOfService !== "Yes") {
+    alerts.push({ level: "fail", label: `Carrier authority is ${fmcsaData.status} — NOT authorized to operate` });
+  }
   // Inspection history — no inspections is suspicious, high OOS rate is a red flag
   const vehicleInsp = parseInt(String(fmcsaData?.vehicleInspections || "0"), 10);
   const driverInsp = parseInt(String(fmcsaData?.driverInspections || "0"), 10);
