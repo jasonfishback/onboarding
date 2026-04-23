@@ -81,7 +81,7 @@ async function detectPhoneType(phoneStr: string): Promise<{ type: string; color:
 }
 
 // ─── Email HTML builders ───────────────────────────────────────────────────
-async function buildDispatchEmail(data: {
+export async function buildDispatchEmail(data: {
   companyData: Record<string, unknown>;
   fmcsaData: Record<string, unknown> | null;
   docsData: Record<string, unknown> | null;
