@@ -206,6 +206,33 @@ ${oos ? `<div class="f"><div class="lbl">Status</div><div class="val"><strong st
 </div></div></div>`;
 })()}
 
+<!-- ── CARRIER ADDRESS LOOKUP (Google Maps) ── -->
+${(() => {
+  const gKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!gKey) return "";
+  const addr = [companyData?.address, companyData?.city, companyData?.state, companyData?.zip].filter(Boolean).join(", ");
+  if (!addr) return "";
+  const encoded = encodeURIComponent(addr);
+  // Street View image — 600x300, points directly at the address
+  const streetUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encoded}&fov=90&key=${gKey}`;
+  // Satellite / map view — zoom 18, marker on the address
+  const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=18&size=600x300&maptype=satellite&markers=color:red%7C${encoded}&key=${gKey}`;
+  const googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+  return `<div class="sec"><div class="sec-hdr">Carrier Address — Location Verification</div><div class="sec-body">
+  <div style="text-align:center;margin-bottom:10px;color:#555;font-size:12px"><strong>${addr}</strong> &nbsp;·&nbsp; <a href="${googleMapsLink}" style="color:#CC1B1B;text-decoration:none">Open in Google Maps →</a></div>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
+      <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛣 Street View</div>
+      <img src="${streetUrl}" alt="Street View" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+    </td>
+    <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
+      <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛰 Satellite View</div>
+      <img src="${mapUrl}" alt="Satellite View" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+    </td>
+  </tr></table>
+</div></div>`;
+})()}
+
 <!-- ── SIGNATURE ── -->
 <div class="sec"><div class="sec-hdr">Agreement &amp; Signature</div><div class="sec-body"><div class="grid">
 <div class="f"><div class="lbl">Signed By</div><div class="val">${sig.signerName as string || "—"}</div></div>

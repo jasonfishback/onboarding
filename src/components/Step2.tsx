@@ -138,8 +138,8 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
   const [form, setForm] = useState({
     legalName: prefill?.name || "", dba: "",
     address: prefill?.address || "", city: prefill?.city || "",
-    state: prefill?.state || "", zip: prefill?.zip || "",
-    phone: prefill?.phone || "", email: prefill?.email || "",
+    state: prefill?.state || "", zip: prefill?.zip ? formatZip(prefill.zip) : "",
+    phone: prefill?.phone ? formatPhone(prefill.phone) : "", email: prefill?.email || "",
     contactName: prefill?.officerName || "", contactTitle: "",
     mc: prefill?.mc || "", dot: prefill?.dot || "",
     ein: "",
