@@ -196,8 +196,29 @@ ${(() => {
 })()}</div></div>
 <div class="f"><div class="lbl">Trucks / Trailers</div><div class="val">${(companyData?.truckCount as string) || "—"} / ${(companyData?.trailerCount as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
-<div class="f"><div class="lbl">Phone</div><div class="val">${(companyData?.phone as string) || "—"}</div></div>
-<div class="f"><div class="lbl">Email</div><div class="val">${(companyData?.email as string) || "—"}</div></div>
+<div class="f"><div class="lbl">Phone</div><div class="val">${(() => {
+  const userPhone = ((companyData?.phone as string) || "").replace(/[^0-9]/g, "");
+  const fmcsaPhone = ((fmcsaData?.phone as string) || "").replace(/[^0-9]/g, "");
+  const display = (companyData?.phone as string) || "—";
+  if (!userPhone) return display;
+  if (!fmcsaPhone) return display;
+  if (userPhone === fmcsaPhone) {
+    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+  }
+  const fmtFmcsa = fmcsaPhone.length === 10 ? `${fmcsaPhone.slice(0,3)}-${fmcsaPhone.slice(3,6)}-${fmcsaPhone.slice(6)}` : fmcsaPhone;
+  return `<span style="color:#CC1B1B;font-weight:700">${display}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmtFmcsa}</span>`;
+})()}</div></div>
+<div class="f"><div class="lbl">Email</div><div class="val">${(() => {
+  const userEmail = ((companyData?.email as string) || "").trim().toLowerCase();
+  const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
+  const display = (companyData?.email as string) || "—";
+  if (!userEmail) return display;
+  if (!fmcsaEmail) return display;
+  if (userEmail === fmcsaEmail) {
+    return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES FMCSA</span>`;
+  }
+  return `<span style="color:#CC1B1B;font-weight:700">${display}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmcsaEmail}</span>`;
+})()}</div></div>
 <div class="f"><div class="lbl">Primary Contact</div><div class="val">${(companyData?.contactName as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Quick Pay</div><div class="val">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
 <div class="f"><div class="lbl">Factoring</div><div class="val">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
