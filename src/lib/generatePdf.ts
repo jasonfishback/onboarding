@@ -274,6 +274,34 @@ function buildCarrierProfilePage(
     drawField(page, fonts, colRight, docY, label as string, val as string, colWid);
     docY -= 24;
   }
+
+  // ── FMCSA Insurance Filings (full width, below both columns) ──
+  y = Math.min(y, docY) - 10;
+  const fmcsaIns = (data.fmcsaData || {}) as Record<string, string>;
+  const hasIns = fmcsaIns.bipdInsuranceOnFile || fmcsaIns.cargoInsuranceOnFile ||
+    fmcsaIns.bondInsuranceOnFile || fmcsaIns.bipdInsuranceRequired ||
+    fmcsaIns.cargoInsuranceRequired || fmcsaIns.bondInsuranceRequired;
+  if (hasIns) {
+    y = drawSectionHeader(page, fonts, y, "Insurance Filings (FMCSA)");
+    const fmt = (v: string) => {
+      const n = parseInt(String(v || "").replace(/[^0-9]/g, ""), 10);
+      if (!n) return "";
+      return n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
+    };
+    const insRow = (label: string, onFile: string, required: string, x: number) => {
+      const onFileFmt = fmt(onFile);
+      const requiredFmt = fmt(required);
+      const val = [
+        onFileFmt ? `On file: ${onFileFmt}` : "",
+        requiredFmt ? `Required: ${requiredFmt}` : "",
+      ].filter(Boolean).join(" • ") || "—";
+      drawField(page, fonts, x, y, label, val, 170);
+    };
+    insRow("Liability (BIPD)", fmcsaIns.bipdInsuranceOnFile, fmcsaIns.bipdInsuranceRequired || fmcsaIns.bipdRequiredAmount, MARGIN);
+    insRow("Cargo Insurance", fmcsaIns.cargoInsuranceOnFile, fmcsaIns.cargoInsuranceRequired, MARGIN + 180);
+    insRow("Broker Bond", fmcsaIns.bondInsuranceOnFile, fmcsaIns.bondInsuranceRequired, MARGIN + 360);
+    y -= 28;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

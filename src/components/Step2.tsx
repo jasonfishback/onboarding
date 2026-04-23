@@ -156,8 +156,16 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
 
   const [dispatch, setDispatch] = useState<ContactData>({ name: "", title: "", phone: "", email: "" });
   const [billing, setBilling] = useState<ContactData>({ name: "", title: "", phone: "", email: "" });
-  const [diffMailing, setDiffMailing] = useState(false);
-  const [mailing, setMailing] = useState({ address: "", city: "", state: "", zip: "" });
+  // Auto-detect different mailing address from FMCSA data
+  const hasMailing = !!(prefill?.mailingAddress &&
+    prefill.mailingAddress.toUpperCase() !== (prefill?.address || "").toUpperCase());
+  const [diffMailing, setDiffMailing] = useState(hasMailing);
+  const [mailing, setMailing] = useState({
+    address: hasMailing ? (prefill?.mailingAddress || "") : "",
+    city: hasMailing ? (prefill?.mailingCity || "") : "",
+    state: hasMailing ? (prefill?.mailingState || "") : "",
+    zip: hasMailing ? formatZip(prefill?.mailingZip || "") : "",
+  });
   const [usesFactoring, setUsesFactoring] = useState(false);
   const [factoringName, setFactoringName] = useState("");
   const [wantsQuickPay, setWantsQuickPay] = useState(false);

@@ -218,6 +218,45 @@ ${oos ? `<div class="f"><div class="lbl">Status</div><div class="val"><strong st
 </div></div></div>`;
 })()}
 
+<!-- ── INSURANCE FILINGS (FMCSA) ── -->
+${(() => {
+  const f = (fmcsaData || {}) as Record<string, string>;
+  const hasAny = f.bipdInsuranceOnFile || f.cargoInsuranceOnFile || f.bondInsuranceOnFile ||
+    f.bipdInsuranceRequired || f.cargoInsuranceRequired || f.bondInsuranceRequired;
+  if (!hasAny) return "";
+  // Badge helper: green if on-file meets/exceeds required; red if required but not on file
+  const fmt = (v: string) => {
+    const n = parseInt(String(v || "").replace(/[^0-9]/g, ""), 10);
+    if (!n) return "";
+    return n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
+  };
+  const rowBadge = (onFile: string, required: string, label: string) => {
+    if (!onFile && !required) return "";
+    const onFileFmt = fmt(onFile);
+    const requiredFmt = fmt(required);
+    const onFileN = parseInt(String(onFile || "").replace(/[^0-9]/g, ""), 10) || 0;
+    const requiredN = parseInt(String(required || "").replace(/[^0-9]/g, ""), 10) || 0;
+    let status = "";
+    if (requiredN > 0 && onFileN >= requiredN) {
+      status = `<span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ FILED</span>`;
+    } else if (requiredN > 0 && onFileN === 0) {
+      status = `<span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ NOT ON FILE</span>`;
+    } else if (requiredN > 0 && onFileN > 0 && onFileN < requiredN) {
+      status = `<span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ UNDERINSURED</span>`;
+    }
+    const valText = [
+      onFileFmt ? `On file: <strong>${onFileFmt}</strong>` : "",
+      requiredFmt ? `Required: ${requiredFmt}` : "",
+    ].filter(Boolean).join(" &nbsp;·&nbsp; ") || "—";
+    return `<div class="f"><div class="lbl">${label}</div><div class="val">${valText}${status}</div></div>`;
+  };
+  return `<div class="sec"><div class="sec-hdr">Insurance Filings (FMCSA)</div><div class="sec-body"><div class="grid">
+${rowBadge(f.bipdInsuranceOnFile, f.bipdInsuranceRequired || f.bipdRequiredAmount, "Liability (BIPD)")}
+${rowBadge(f.cargoInsuranceOnFile, f.cargoInsuranceRequired, "Cargo Insurance")}
+${rowBadge(f.bondInsuranceOnFile, f.bondInsuranceRequired, "Broker Bond")}
+</div></div></div>`;
+})()}
+
 <!-- ── CARRIER ADDRESS LOOKUP (Google Maps) ── -->
 ${(() => {
   const gKey = process.env.GOOGLE_MAPS_API_KEY;

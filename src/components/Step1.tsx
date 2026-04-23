@@ -30,6 +30,17 @@ export interface CarrierData {
   outOfService?: string;
   fmcsaEin?: string;
   officerName?: string;
+  mailingAddress?: string;
+  mailingCity?: string;
+  mailingState?: string;
+  mailingZip?: string;
+  bipdInsuranceOnFile?: string;
+  bipdInsuranceRequired?: string;
+  bipdRequiredAmount?: string;
+  cargoInsuranceOnFile?: string;
+  cargoInsuranceRequired?: string;
+  bondInsuranceOnFile?: string;
+  bondInsuranceRequired?: string;
   cargoCarried?: string[];
   source?: string;
 }
