@@ -98,7 +98,15 @@ async function buildDispatchEmail(data: {
   const trailers = [tt.reefer && "Reefer", tt.van && "Dry Van", tt.flatbed && "Flatbed"].filter(Boolean).join(", ") || "—";
 
   // Pre-compute phone type info (async — Numverify + libphonenumber fallback)
-  const phoneTypeInfo = await detectPhoneType((companyData?.phone as string) || "");
+  // If dispatch phone is same as primary, only one validation call is made (saves quota)
+  const dispatch = (companyData?.dispatch as Record<string, string>) || {};
+  const primaryPhone = (companyData?.phone as string) || "";
+  const dispatchPhone = dispatch.phone || "";
+  const primaryDigits = primaryPhone.replace(/[^0-9]/g, "");
+  const dispatchDigits = dispatchPhone.replace(/[^0-9]/g, "");
+  const sameAsPrimary = primaryDigits && primaryDigits === dispatchDigits;
+  const phoneTypeInfo = await detectPhoneType(primaryPhone);
+  const dispatchPhoneTypeInfo = sameAsPrimary ? phoneTypeInfo : (dispatchPhone ? await detectPhoneType(dispatchPhone) : null);
 
   // ── Document status logic ──
   const docs = (docsData || {}) as Record<string, unknown>;
@@ -186,6 +194,7 @@ body{font-family:Arial,sans-serif;background:#f5f3ef;margin:0;padding:20px}
   <h1>🚛 New Carrier Onboarding</h1>
   <p>${name} &nbsp;·&nbsp; MC# ${mc} &nbsp;·&nbsp; ${today}</p>
   ${(companyData?.city || companyData?.state) ? `<p style="color:#ccc;margin:3px 0 0;font-size:13px">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</p>` : ""}
+  <p style="color:#ff4444;margin:10px 0 0;font-size:14px;font-weight:900;letter-spacing:.05em;text-transform:uppercase">⚠ Check All Alerts ⚠</p>
 </div>
 
 ${(() => {
@@ -271,7 +280,7 @@ ${(() => {
 })()}</div></div>
 <div class="f"><div class="lbl">Trucks / Trailers</div><div class="val">${(companyData?.truckCount as string) || "—"} / ${(companyData?.trailerCount as string) || "—"}</div></div>
 <div class="f"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
-<div class="f"><div class="lbl">Phone</div><div class="val">${(() => {
+<div class="f"><div class="lbl">Primary Phone</div><div class="val">${(() => {
   const userPhone = ((companyData?.phone as string) || "").replace(/[^0-9]/g, "");
   const fmcsaPhone = ((fmcsaData?.phone as string) || "").replace(/[^0-9]/g, "");
   const display = (companyData?.phone as string) || "—";
@@ -292,6 +301,17 @@ ${(() => {
   }
   return `${display}${typeBadge}`;
 })()}</div></div>
+${(() => {
+  // Dispatch Phone row — only show if provided AND different from primary
+  if (!dispatchDigits) return "";
+  if (sameAsPrimary) {
+    return `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val"><span style="color:#888">${dispatchPhone}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`;
+  }
+  const typeBadge = dispatchPhoneTypeInfo
+    ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>`
+    : "";
+  return `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${typeBadge}</div></div>`;
+})()}
 <div class="f"><div class="lbl">Email</div><div class="val">${(() => {
   const userEmail = ((companyData?.email as string) || "").trim().toLowerCase();
   const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
@@ -365,7 +385,10 @@ ${rowBadge(f.bondInsuranceOnFile, f.bondInsuranceRequired, "Broker Bond")}
 <!-- ── CARRIER ADDRESS LOOKUP (Google Maps) ── -->
 ${(() => {
   const gKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!gKey) return "";
+  if (!gKey) {
+    console.warn("[submit] GOOGLE_MAPS_API_KEY not set — skipping Street View section");
+    return "";
+  }
   const addr = [companyData?.address, companyData?.city, companyData?.state, companyData?.zip].filter(Boolean).join(", ");
   if (!addr) return "";
   const encoded = encodeURIComponent(addr);
@@ -375,15 +398,16 @@ ${(() => {
   const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=18&size=600x300&maptype=satellite&markers=color:red%7C${encoded}&key=${gKey}`;
   const googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
   return `<div class="sec"><div class="sec-hdr">Carrier Address — Location Verification</div><div class="sec-body">
-  <div style="text-align:center;margin-bottom:10px;color:#555;font-size:12px"><strong>${addr}</strong> &nbsp;·&nbsp; <a href="${googleMapsLink}" style="color:#CC1B1B;text-decoration:none">Open in Google Maps →</a></div>
+  <div style="text-align:center;margin-bottom:10px;color:#555;font-size:12px"><strong>${addr}</strong> &nbsp;·&nbsp; <a href="${googleMapsLink}" style="color:#CC1B1B;text-decoration:none;font-weight:700">Open in Google Maps →</a></div>
+  <div style="text-align:center;margin-bottom:10px;color:#888;font-size:11px;font-style:italic">If images don't display, click "Display images" in your email client, or use the Google Maps link above.</div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
     <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
       <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛣 Street View</div>
-      <img src="${streetUrl}" alt="Street View" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+      <a href="${googleMapsLink}"><img src="${streetUrl}" alt="Street View - click to open in Google Maps" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" /></a>
     </td>
     <td width="50%" style="padding:4px;text-align:center;vertical-align:top">
       <div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🛰 Satellite View</div>
-      <img src="${mapUrl}" alt="Satellite View" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" />
+      <a href="${googleMapsLink}"><img src="${mapUrl}" alt="Satellite View - click to open in Google Maps" style="width:100%;max-width:300px;border:1px solid #ddd;border-radius:4px;display:block;margin:0 auto" /></a>
     </td>
   </tr></table>
 </div></div>`;
