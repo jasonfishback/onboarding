@@ -236,6 +236,11 @@ export async function GET(req: NextRequest) {
         towawayCrashes: c.towawayCrash != null ? String(c.towawayCrash) : "",
         // Snapshot date — when FMCSA last updated their safety record
         snapshotDate: c.snapshotDate ? String(c.snapshotDate) : "",
+        // ISS (Inspection Selection System) score — 0–100 likelihood of roadside inspection
+        issScore: c.issScore != null ? String(c.issScore) : "",
+        // Safety review date — when FMCSA most recently reviewed this carrier
+        safetyReviewDate: c.safetyReviewDate ? String(c.safetyReviewDate) : (c.reviewDate ? String(c.reviewDate) : ""),
+        safetyReviewType: c.safetyReviewType ? String(c.safetyReviewType) : (c.reviewType ? String(c.reviewType) : ""),
         source: "fmcsa",
       },
     });
