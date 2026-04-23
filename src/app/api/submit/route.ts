@@ -17,7 +17,7 @@ async function detectPhoneType(phoneStr: string): Promise<{ type: string; color:
   if (digits.length < 10) return null;
 
   // ── Primary: Numverify (accurate real-time carrier lookup) ──
-  const numverifyKey = process.env.NUMVERIFY_API_KEY;
+  const numverifyKey = process.env.NUMVERIFY_API_KE;
   if (numverifyKey) {
     try {
       const numverifyUrl = `http://apilayer.net/api/validate?access_key=${numverifyKey}&number=${digits}&country_code=US&format=1`;
