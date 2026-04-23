@@ -17,10 +17,18 @@ export interface CarrierData {
   status: string;
   dba?: string;
   safetyRating?: string;
+  safetyRatingDate?: string;
   insuranceOnFile?: string;
   cargoInsOnFile?: string;
   totalDrivers?: string;
   totalPowerUnits?: string;
+  truckCount?: string;
+  driverCount?: string;
+  mcs150Date?: string;
+  operationClass?: string;
+  hazmatFlag?: string;
+  outOfService?: string;
+  cargoCarried?: string[];
   source?: string;
 }
 

@@ -142,7 +142,9 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
     phone: prefill?.phone || "", email: prefill?.email || "",
     contactName: "", contactTitle: "",
     mc: prefill?.mc || "", dot: prefill?.dot || "",
-    ein: "", truckCount: "", trailerCount: "",
+    ein: "",
+    truckCount: prefill?.truckCount || "",
+    trailerCount: "",
     trailerTypes: { reefer: false, van: false, flatbed: false },
   });
 
@@ -170,6 +172,23 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       {prefill && (
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#edfaf3", border: "1.5px solid #22a355", borderRadius: 2, padding: "5px 12px", marginBottom: 16, fontSize: 13, color: "#22a355", fontWeight: 600 }}>
           ✓ Pre-filled from FMCSA — please verify and complete
+        </div>
+      )}
+
+      {/* FMCSA Safety Snapshot — only shown when we have data */}
+      {prefill && (prefill.safetyRating || prefill.outOfService === "Yes" || prefill.operationClass) && (
+        <div style={{ background: "#f8f8f8", border: "1.5px solid " + DARK, borderRadius: 2, padding: "10px 14px", marginBottom: 18, fontSize: 12, fontFamily: "DM Sans" }}>
+          <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: ".08em", color: "#555", marginBottom: 6 }}>FMCSA SNAPSHOT</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "6px 16px" }}>
+            {prefill.outOfService === "Yes" && (
+              <div style={{ color: "#CC1B1B", fontWeight: 700 }}>⚠ Out of Service</div>
+            )}
+            {prefill.safetyRating && <div><strong>Safety Rating:</strong> {prefill.safetyRating}</div>}
+            {prefill.operationClass && <div><strong>Operation:</strong> {prefill.operationClass}</div>}
+            {prefill.truckCount && <div><strong>Power Units:</strong> {prefill.truckCount}</div>}
+            {prefill.driverCount && <div><strong>Drivers:</strong> {prefill.driverCount}</div>}
+            {prefill.hazmatFlag === "Yes" && <div><strong>Hazmat:</strong> Yes</div>}
+          </div>
         </div>
       )}
 

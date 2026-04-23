@@ -173,6 +173,21 @@ ${(() => {
 <div class="f"><div class="lbl">Factoring</div><div class="val">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
 </div></div></div>
 
+<!-- ── FMCSA SAFETY SNAPSHOT ── -->
+${(() => {
+  const f = (fmcsaData || {}) as Record<string, string>;
+  if (!f.safetyRating && !f.operationClass && !f.outOfService && !f.truckCount) return "";
+  const oos = f.outOfService === "Yes";
+  return `<div class="sec"><div class="sec-hdr" style="${oos ? 'background:#ffdddd;color:#CC1B1B;border-color:#CC1B1B' : ''}">FMCSA Safety Snapshot${oos ? " ⚠ OUT OF SERVICE" : ""}</div><div class="sec-body"><div class="grid">
+${f.safetyRating ? `<div class="f"><div class="lbl">Safety Rating</div><div class="val">${f.safetyRating}${f.safetyRatingDate ? ` <span style="color:#888">(${f.safetyRatingDate})</span>` : ""}</div></div>` : ""}
+${f.operationClass ? `<div class="f"><div class="lbl">Operation Class</div><div class="val">${f.operationClass}</div></div>` : ""}
+${f.truckCount ? `<div class="f"><div class="lbl">Power Units (FMCSA)</div><div class="val">${f.truckCount}</div></div>` : ""}
+${f.driverCount ? `<div class="f"><div class="lbl">Drivers (FMCSA)</div><div class="val">${f.driverCount}</div></div>` : ""}
+${f.hazmatFlag === "Yes" ? `<div class="f"><div class="lbl">Hazmat</div><div class="val"><strong style="color:#CC1B1B">Yes</strong></div></div>` : ""}
+${oos ? `<div class="f"><div class="lbl">Status</div><div class="val"><strong style="color:#CC1B1B">⚠ OUT OF SERVICE</strong></div></div>` : ""}
+</div></div></div>`;
+})()}
+
 <!-- ── SIGNATURE ── -->
 <div class="sec"><div class="sec-hdr">Agreement &amp; Signature</div><div class="sec-body"><div class="grid">
 <div class="f"><div class="lbl">Signed By</div><div class="val">${sig.signerName as string || "—"}</div></div>

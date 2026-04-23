@@ -74,6 +74,18 @@ export async function GET(req: NextRequest) {
         mc,
         type: "Motor Carrier",
         status: c.allowedToOperate === "Y" ? "Active" : "Inactive",
+        // ── Additional fields from FMCSA census ──
+        truckCount: c.totalPowerUnits != null ? String(c.totalPowerUnits) : "",
+        driverCount: c.totalDrivers != null ? String(c.totalDrivers) : "",
+        mcs150Date: c.mcs150Outdated === "N" ? "Current" : c.mcs150FormDate || "",
+        operationClass: c.carrierOperation?.carrierOperationDesc || "",
+        hazmatFlag: c.oic === "Y" ? "Yes" : "No",
+        safetyRating: c.safetyRating || "",
+        safetyRatingDate: c.safetyRatingDate || "",
+        reviewDate: c.reviewDate || "",
+        outOfService: c.statusCode === "INACTIVE-USDOT" || c.allowedToOperate === "N" ? "Yes" : "No",
+        // Cargo/commodity carried (array of cargo types)
+        cargoCarried: Array.isArray(c.carrier?.cargoCarried) ? c.carrier.cargoCarried : [],
         source: "fmcsa",
       },
     });
