@@ -31,14 +31,6 @@ export async function GET(req: NextRequest) {
 
     if (!c) return NextResponse.json({ carrier: null });
 
-    // TEMP DEBUG: capture all date/authority-related fields to find in-service/authority grant date
-    const _dateFields: Record<string, unknown> = {};
-    for (const k of Object.keys(c).sort()) {
-      if (/date|grant|author|mcs150|oper|service|status/i.test(k)) {
-        _dateFields[k] = c[k];
-      }
-    }
-
     // Build MC# from prefix+docketNumber, or fall back to value for MC lookups
     let mc = c.prefix && c.docketNumber
       ? `${c.prefix}${c.docketNumber}`
@@ -249,8 +241,13 @@ export async function GET(req: NextRequest) {
         // Safety review date — when FMCSA most recently reviewed this carrier
         safetyReviewDate: c.safetyReviewDate ? String(c.safetyReviewDate) : (c.reviewDate ? String(c.reviewDate) : ""),
         safetyReviewType: c.safetyReviewType ? String(c.safetyReviewType) : (c.reviewType ? String(c.reviewType) : ""),
+        // Out-of-service date — only set on OOS carriers
+        oosDate: c.oosDate ? String(c.oosDate) : "",
+        // Common/for-hire authority status: "A" = Active, "I" = Inactive, "N" = None
+        commonAuthorityStatus: c.commonAuthorityStatus ? String(c.commonAuthorityStatus) : "",
+        contractAuthorityStatus: c.contractAuthorityStatus ? String(c.contractAuthorityStatus) : "",
+        brokerAuthorityStatus: c.brokerAuthorityStatus ? String(c.brokerAuthorityStatus) : "",
         source: "fmcsa",
-        _dateFields,
       },
     });
   } catch (err) {

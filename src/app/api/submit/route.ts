@@ -380,7 +380,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
       const mcPart = hasMc ? `MC# ${mcLink} &nbsp;·&nbsp; ` : "";
       return `${mcPart}DOT# ${dotLink} &nbsp;·&nbsp; <span style="color:#ffffff">${today}</span>`;
     })()}
-    ${(companyData?.city || companyData?.state) ? `<br><span style="color:#a1a1aa">📍 ${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</span>` : ""}
+    ${(companyData?.city || companyData?.state) ? `<br><span style="color:#9ca3af">📍 Carrier: <span style="color:#ffffff">${[companyData?.city, companyData?.state].filter(Boolean).join(", ")}</span></span>` : ""}
+    ${ipAddress ? (() => {
+      const ipLoc = [geoInfo.city, geoInfo.region].filter(Boolean).join(", ");
+      const isUSA = !geoInfo.countryCode || geoInfo.countryCode === "US";
+      const proxyFlag = geoInfo.proxy && geoInfo.proxy !== "No";
+      const ipColor = !isUSA ? "#ff6b6b" : proxyFlag ? "#ffaa00" : "#ffffff";
+      return `<br><span style="color:#9ca3af">🌐 Submitted from: <span style="color:${ipColor};font-weight:700">${ipAddress}</span>${ipLoc ? ` · <span style="color:${ipColor}">${ipLoc}${!isUSA && geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}${proxyFlag ? ` · <strong style="color:#ff6b6b">🚩 PROXY/VPN</strong>` : ""}</span>`;
+    })() : ""}
+    ${(fmcsaData?.mcs150Date && fmcsaData.mcs150Date !== "Current") ? `<br><span style="color:#9ca3af">📋 MCS-150 filed: <span style="color:#ffffff">${fmcsaData.mcs150Date as string}</span></span>` : ""}
   </p>
   <div style="display:inline-block;margin-top:14px;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:${overallBg};color:${overallColor}">
     ${overallIcon}&nbsp; ${overallLabel}
@@ -388,22 +396,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 </div>
 
 ${(() => {
+  // Red full-width banner ONLY for non-USA submissions (duplicate of header but more prominent)
   if (!ipAddress) return "";
   const isUSA = !geoInfo.countryCode || geoInfo.countryCode === "US";
-  const location = [geoInfo.city, geoInfo.region, geoInfo.country].filter(Boolean).join(", ");
   if (!isUSA) {
-    return `<div style="background:#CC1B1B;padding:18px 32px;text-align:center">
-  <div style="font-size:20px;font-weight:900;color:white;letter-spacing:.5px;margin-bottom:6px">
-    🚩 &nbsp;SUBMITTED FROM OUTSIDE USA&nbsp; 🚩
-  </div>
-  <div style="color:#ffe0e0;font-size:13px;font-weight:600">
-    IP <span style="color:white">${ipAddress}</span> &nbsp;·&nbsp; ${location || "Unknown location"} &nbsp;·&nbsp; ${geoInfo.isp || "Unknown ISP"}
+    return `<div style="background:#CC1B1B;padding:14px 32px;text-align:center">
+  <div style="font-size:16px;font-weight:900;color:white;letter-spacing:.5px">
+    🚩 SUBMITTED FROM OUTSIDE USA (${geoInfo.country || "unknown"}) — VERIFY IMMEDIATELY 🚩
   </div>
 </div>`;
   }
-  const proxyFlag = geoInfo.proxy === "true" || geoInfo.hosting === "true";
-  // Non-USA gets a full red banner; domestic IP is rendered as a dedicated section later (below the address block)
-  void proxyFlag; // silence unused in this closure — referenced in the dedicated section
   return "";
 })()}
 
@@ -426,6 +428,30 @@ ${(() => {
 })()}
 
 <div class="body">
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  ALERTS — at top for immediate visibility                                -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <div class="sec-hdr" style="${failCount > 0 ? "background:#fff5f5;color:#CC1B1B;border-color:#CC1B1B" : warnCount > 0 ? "background:#fff8ed;color:#e07000;border-color:#e07000" : "background:#edfaf3;color:#22a355;border-color:#22a355"}">
+    ${failCount > 0 ? "⚠ Alerts — Action Required" : warnCount > 0 ? "⚠ Alerts — Needs Review" : "✓ Alerts — All Clear"}
+    <span style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em">
+      ${warnCount > 0 ? `<span style="color:#e07000">${warnCount} warning${warnCount === 1 ? "" : "s"}</span>` : ""}
+      ${warnCount > 0 && failCount > 0 ? ` &nbsp;·&nbsp; ` : ""}
+      ${failCount > 0 ? `<span style="color:#CC1B1B">${failCount} issue${failCount === 1 ? "" : "s"}</span>` : ""}
+    </span>
+  </div>
+  <div class="sec-body" style="padding:14px 20px">
+    ${alerts.length === 0 ? `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px"><span class="alert-icon" style="background:#22a355">✓</span><span style="color:#166534">No alerts — all checks passed</span></div>` : `<ul class="alert-list">
+      ${alerts.map(a => {
+        const bg = a.level === "ok" ? "#22a355" : a.level === "warn" ? "#e07000" : "#CC1B1B";
+        const ic = a.level === "ok" ? "✓" : a.level === "warn" ? "!" : "✗";
+        const col = a.level === "ok" ? "#166534" : a.level === "warn" ? "#92400e" : "#991b1b";
+        return `<li class="alert-item"><span class="alert-icon" style="background:${bg}">${ic}</span><span style="color:${col};font-weight:${a.level === "ok" ? 500 : 600}">${a.label}</span></li>`;
+      }).join("")}
+    </ul>`}
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!--  SECTION 1: CARRIER INFORMATION                                          -->
@@ -490,10 +516,7 @@ ${(() => {
         }
         return `${display}${typeBadge}`;
       })()}</div></div>
-      ${dispatchDigits ? (sameAsPrimary
-        ? `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val"><span style="color:#888">${dispatchPhone}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`
-        : `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${dispatchPhoneTypeInfo ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>` : ""}</div></div>`)
-        : ""}
+      ${dispatchDigits && !sameAsPrimary ? `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${dispatchPhoneTypeInfo ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>` : ""}</div></div>` : ""}
       <div class="f"><div class="lbl">Primary Email</div><div class="val">${(() => {
         const userEmail = primaryEmail.toLowerCase();
         const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
@@ -504,16 +527,8 @@ ${(() => {
         if (userEmail === fmcsaEmail) return `${display}${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES</span>`;
         return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmcsaEmail}</span>`;
       })()}</div></div>
-      ${dispatchEmail ? (sameEmail
-        ? `<div class="f"><div class="lbl">Dispatch Email</div><div class="val"><span style="color:#888">${dispatchEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`
-        : `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>`)
-        : ""}
-      ${billingEmail ? (billingSameAsPrimary
-        ? `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= PRIMARY</span></div></div>`
-        : billingSameAsDispatch
-          ? `<div class="f"><div class="lbl">Billing Email</div><div class="val"><span style="color:#888">${billingEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#f0f0f0;color:#888;border:1px solid #ddd">= DISPATCH</span></div></div>`
-          : `<div class="f"><div class="lbl">Billing Email</div><div class="val">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>`)
-        : ""}
+      ${dispatchEmail && !sameEmail ? `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>` : ""}
+      ${billingEmail && !billingSameAsPrimary && !billingSameAsDispatch ? `<div class="f"><div class="lbl">Billing Email</div><div class="val">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>` : ""}
       ${agentEmail ? (() => {
         const a = agentEmail.toLowerCase();
         if (a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase()) {
@@ -557,10 +572,14 @@ ${(() => {
         const hasAny = f.bipdInsuranceOnFile || f.cargoInsuranceOnFile || f.bondInsuranceOnFile ||
           f.bipdInsuranceRequired || f.cargoInsuranceRequired || f.bondInsuranceRequired;
         if (!hasAny) return "";
+        // FMCSA stores insurance amounts in thousands of dollars.
+        // e.g. bipdInsuranceOnFile = "1000" means $1,000,000 ($1M); "750" means $750,000 ($750K).
+        // Broker bond minimum is $75,000 (value of 75); BIPD minimum is $750,000 (value of 750).
         const fmt = (v: string) => {
           const n = parseInt(String(v || "").replace(/[^0-9]/g, ""), 10);
           if (!n) return "";
-          return n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
+          if (n >= 1000) return `$${(n / 1000).toFixed(0)}M`;   // 1000 thousand = $1M
+          return `$${n}K`;                                      // 750 thousand = $750K, 75 thousand = $75K
         };
         const insRow = (onFile: string, required: string, label: string) => {
           if (!onFile && !required) return "";
@@ -706,45 +725,6 @@ ${(() => {
     ${mailingDiffers ? buildAddressBlock("Mailing Address", mailingAddr) : ""}
   </div></div>`;
 })()}
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  SUBMISSION ORIGIN (IP + Location) — directly below address block       -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div style="margin-bottom:22px;padding:14px 18px;background:#18181b;border-radius:10px;color:#ffffff;font-size:14px;line-height:1.6">
-  <div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#a1a1aa;margin-bottom:6px">🌐 Submission Origin</div>
-  <div>
-    <strong style="color:#ffffff;font-size:15px">${ipAddress || "—"}</strong>
-    ${(geoInfo.city || geoInfo.region) ? ` &nbsp;·&nbsp; <span style="color:#ffffff">${[geoInfo.city, geoInfo.region].filter(Boolean).join(", ")}${geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}
-    ${geoInfo.isp ? ` &nbsp;·&nbsp; <span style="color:#d4d4d8">${geoInfo.isp}</span>` : ""}
-    ${geoInfo.proxy && geoInfo.proxy !== "No" ? ` &nbsp;·&nbsp; <strong style="color:#ff6b6b">🚩 PROXY/VPN DETECTED</strong>` : ""}
-    ${geoInfo.mobile ? ` &nbsp;·&nbsp; <span style="color:#d4d4d8">📱 ${geoInfo.mobile}</span>` : ""}
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  SECTION 2: ALERTS                                                       -->
-<!--  Red/yellow issues get called out here; all-clear shows green checks    -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="sec">
-  <div class="sec-hdr" style="${failCount > 0 ? "background:#fff5f5;color:#CC1B1B;border-color:#CC1B1B" : warnCount > 0 ? "background:#fff8ed;color:#e07000;border-color:#e07000" : "background:#edfaf3;color:#22a355;border-color:#22a355"}">
-    ${failCount > 0 ? "⚠ Alerts — Action Required" : warnCount > 0 ? "⚠ Alerts — Needs Review" : "✓ Alerts — All Clear"}
-    <span style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em">
-      ${okCount > 0 ? `<span style="color:#22a355">${okCount} passed</span>` : ""}
-      ${warnCount > 0 ? ` &nbsp;·&nbsp; <span style="color:#e07000">${warnCount} warning${warnCount === 1 ? "" : "s"}</span>` : ""}
-      ${failCount > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B">${failCount} issue${failCount === 1 ? "" : "s"}</span>` : ""}
-    </span>
-  </div>
-  <div class="sec-body" style="padding:14px 20px">
-    <ul class="alert-list">
-      ${alerts.map(a => {
-        const bg = a.level === "ok" ? "#22a355" : a.level === "warn" ? "#e07000" : "#CC1B1B";
-        const ic = a.level === "ok" ? "✓" : a.level === "warn" ? "!" : "✗";
-        const col = a.level === "ok" ? "#166534" : a.level === "warn" ? "#92400e" : "#991b1b";
-        return `<li class="alert-item"><span class="alert-icon" style="background:${bg}">${ic}</span><span style="color:${col};font-weight:${a.level === "ok" ? 500 : 600}">${a.label}</span></li>`;
-      }).join("")}
-    </ul>
-  </div>
-</div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!--  SECTION 3: DOCUMENT STATUS                                              -->

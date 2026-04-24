@@ -283,10 +283,13 @@ function buildCarrierProfilePage(
     fmcsaIns.cargoInsuranceRequired || fmcsaIns.bondInsuranceRequired;
   if (hasIns) {
     y = drawSectionHeader(page, fonts, y, "Insurance Filings (FMCSA)");
+    // FMCSA insurance values are stored in thousands of dollars.
+    // e.g. "1000" = $1,000,000 ($1M); "750" = $750,000 ($750K); "75" = $75K (bond minimum).
     const fmt = (v: string) => {
       const n = parseInt(String(v || "").replace(/[^0-9]/g, ""), 10);
       if (!n) return "";
-      return n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${n}`;
+      if (n >= 1000) return `$${(n / 1000).toFixed(0)}M`;
+      return `$${n}K`;
     };
     const insRow = (label: string, onFile: string, required: string, x: number) => {
       const onFileFmt = fmt(onFile);
