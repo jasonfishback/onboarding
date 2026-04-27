@@ -540,10 +540,27 @@ ${(() => {
       ${billingEmail && !billingSameAsPrimary && !billingSameAsDispatch ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Billing Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>` : ""}
       ${agentEmail ? (() => {
         const a = agentEmail.toLowerCase();
-        if (a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase()) {
-          return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER</span></div></div>`;
+        const sameAsCarrier = a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase();
+        const v = agentEmailValidation;
+        // Show Fix & Resend button if email is invalid OR it's the same as the carrier's own (which the agent isn't)
+        const isProblematic = sameAsCarrier || (v && (v.disposable || !v.format || !v.hasMx || v.deliverability === "UNDELIVERABLE" || v.deliverability === "RISKY"));
+        const fixUrl = isProblematic ? (() => {
+          const ctx = {
+            agentEmail,
+            companyName: name,
+            carrierEmail: primaryEmail,
+          };
+          // Base64 encode JSON for URL transport (no DB needed)
+          const encoded = Buffer.from(JSON.stringify(ctx)).toString("base64");
+          return `https://setup.simonexpress.com/fix-coi?d=${encodeURIComponent(encoded)}`;
+        })() : null;
+        const fixButton = fixUrl
+          ? ` <a href="${fixUrl}" target="_blank" style="display:inline-block;margin-left:8px;padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#CC1B1B;color:white;text-decoration:none">✉ Fix &amp; Resend</a>`
+          : "";
+        if (sameAsCarrier) {
+          return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER</span>${fixButton}</div></div>`;
         }
-        return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${agentEmail}${emailBadgeHtml(agentEmailValidation)}</div></div>`;
+        return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${agentEmail}${emailBadgeHtml(agentEmailValidation)}${fixButton}</div></div>`;
       })() : ""}
 
       <!-- Equipment -->
