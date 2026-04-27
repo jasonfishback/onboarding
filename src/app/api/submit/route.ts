@@ -5,6 +5,7 @@ import { generateOnboardingPDF } from "@/lib/generatePdf";
 import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
 import { validateEmail } from "@/lib/validateEmail";
+import { scanCOI, type CoiScanResult } from "@/lib/scanCOI";
 import { getSessionFiles } from "@/app/api/upload/route";
 
 export const runtime = "nodejs";
@@ -89,8 +90,9 @@ export async function buildDispatchEmail(data: {
   sigData: Record<string, unknown> | null;
   ipAddress: string;
   geoInfo: Record<string, string>;
+  coiScan?: CoiScanResult | null;
 }): Promise<string> {
-  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo } = data;
+  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan } = data;
   const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
   // Normalize MC# — strip any leading "MC" prefix so we never render "MC MC024308"
   const mcRaw = (companyData?.mc as string) || (fmcsaData?.mc as string) || "";
@@ -315,6 +317,33 @@ export async function buildDispatchEmail(data: {
   // Non-USA IP
   if (ipAddress && geoInfo.countryCode && geoInfo.countryCode !== "US") {
     alerts.push({ level: "fail", label: `Submission from outside USA (${geoInfo.country})` });
+  }
+
+  // ── COI Expiration check (from scanned PDF) ──
+  // Look at the EARLIEST expiration found — that's the policy that lapses first.
+  // Standard ACORD 25 forms have multiple expiration dates (one per coverage line).
+  if (coiScan && coiScan.expirationDates.length > 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const parsedDates: { raw: string; date: Date }[] = [];
+    for (const raw of coiScan.expirationDates) {
+      const parts = raw.split("/").map(p => parseInt(p, 10));
+      if (parts.length !== 3 || parts.some(isNaN)) continue;
+      let [m, d, y] = parts;
+      if (y < 100) y = y < 50 ? 2000 + y : 1900 + y;  // 2-digit year handling
+      const date = new Date(y, m - 1, d);
+      if (!isNaN(date.getTime())) parsedDates.push({ raw, date });
+    }
+    if (parsedDates.length > 0) {
+      parsedDates.sort((a, b) => a.date.getTime() - b.date.getTime());
+      const earliest = parsedDates[0];
+      const daysUntil = Math.round((earliest.date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntil < 0) {
+        alerts.push({ level: "fail", label: `COI expired ${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? "" : "s"} ago (${earliest.raw})` });
+      } else if (daysUntil < 30) {
+        alerts.push({ level: "warn", label: `COI expires in ${daysUntil} day${daysUntil === 1 ? "" : "s"} (${earliest.raw})` });
+      }
+    }
   }
 
   const okCount = alerts.filter(a => a.level === "ok").length;
@@ -688,6 +717,75 @@ ${(() => {
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  COI SCAN — auto-extracted producer email + expiration                   -->
+<!--  Only shown when the carrier uploaded a COI we could extract text from   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+${(() => {
+  if (!coiScan || !coiScan.textExtracted) return "";
+  // Only show this block if we found at least one email candidate
+  if (!coiScan.producerEmail && coiScan.otherEmails.length === 0) return "";
+  // Also useful when the carrier already entered an agent email — the extracted one might be different
+  const carrierProvidedAgent = (docsData?.agentEmail as string || "").trim().toLowerCase();
+  const extracted = coiScan.producerEmail || "";
+  const matchesProvided = extracted && carrierProvidedAgent && extracted.toLowerCase() === carrierProvidedAgent;
+
+  // Build Fix & Resend URL
+  const buildFixUrl = (email: string) => {
+    const ctx = { agentEmail: email, companyName: name, carrierEmail: primaryEmail };
+    const encoded = Buffer.from(JSON.stringify(ctx)).toString("base64");
+    return `https://setup.simonexpress.com/fix-coi?d=${encodeURIComponent(encoded)}`;
+  };
+
+  // Determine the headline for this section based on context
+  let headline: string;
+  let headlineColor = "#71717a";
+  if (matchesProvided) {
+    headline = "✓ COI scanned — producer email matches what was provided";
+    headlineColor = "#22a355";
+  } else if (carrierProvidedAgent && extracted) {
+    headline = "⚠ COI scan found a different producer email";
+    headlineColor = "#e07000";
+  } else if (extracted && !carrierProvidedAgent) {
+    headline = "📎 COI uploaded — agent email auto-extracted";
+    headlineColor = "#0066cc";
+  } else {
+    headline = "📎 COI uploaded — review extracted contacts";
+  }
+
+  const expBadge = coiScan.expirationDates.length > 0
+    ? ` &nbsp;·&nbsp; <span style="color:#71717a">Earliest expiration: <strong style="color:#18181b">${coiScan.expirationDates[0]}</strong></span>`
+    : "";
+
+  return `<div class="sec">
+    <div class="sec-hdr">📎 Insurance Certificate Scan</div>
+    <div class="sec-body">
+      <div style="font-size:13px;color:${headlineColor};font-weight:700;margin-bottom:10px">${headline}${expBadge}</div>
+      <div style="font-size:12px;color:#71717a;margin-bottom:12px;line-height:1.5">
+        Auto-extracted from the uploaded COI PDF. Click an email below to verify it and send (or resend) the certificate request.
+        Open the attached <strong>Supporting Documents</strong> PDF to view the full COI for verification.
+      </div>
+      ${extracted ? `
+      <div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:12px 14px;margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;letter-spacing:.06em;margin-bottom:4px">Most Likely Producer / Agent</div>
+        <div style="font-size:14px;color:#18181b;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+          <span>${extracted}</span>
+          <a href="${buildFixUrl(extracted)}" target="_blank" style="display:inline-block;padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#22a355;color:white;text-decoration:none">✓ Verify &amp; Send</a>
+        </div>
+      </div>` : ""}
+      ${coiScan.otherEmails.length > 0 ? `
+      <div style="margin-top:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;letter-spacing:.06em;margin-bottom:6px">Other Emails Found in PDF</div>
+        ${coiScan.otherEmails.slice(0, 5).map(e => `
+        <div style="background:#fff;border:1px solid #e4e4e7;border-radius:6px;padding:8px 12px;margin-bottom:4px;font-size:13px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span style="color:#52525b">${e}</span>
+          <a href="${buildFixUrl(e)}" target="_blank" style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#fff;color:#0066cc;border:1px solid #0066cc;text-decoration:none">✉ Use This</a>
+        </div>`).join("")}
+      </div>` : ""}
+    </div>
+  </div>`;
+})()}
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!--  ADDRESS LOCATION VERIFICATION (Google Maps — Street View + Aerial)     -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- ── CARRIER ADDRESS LOOKUP (Google Maps) ── -->
@@ -919,6 +1017,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Generate attachments PDF (uploaded docs) ──
+    let coiScan: CoiScanResult | null = null;
     const attachments: Array<{ filename: string; content: string }> = [
       {
         filename: `Simon_Express_Onboarding_Packet_${safeName}.pdf`,
@@ -946,6 +1045,24 @@ export async function POST(req: NextRequest) {
       if (sessionFiles && sessionFiles.size > 0) {
         console.log("[submit] processing", sessionFiles.size, "uploaded documents...");
 
+        // ── Auto-scan the COI (insurance certificate) for producer/agent email + expiration ──
+        // Only scans PDFs with text layers; image-only/scanned PDFs return null silently.
+        const coiFile = sessionFiles.get("ins");
+        if (coiFile && coiFile.mimeType === "application/pdf") {
+          try {
+            console.log("[submit] scanning COI for producer email...");
+            coiScan = await scanCOI(coiFile.buffer);
+            console.log("[submit] COI scan result:", {
+              textExtracted: coiScan.textExtracted,
+              producerEmail: coiScan.producerEmail,
+              otherEmails: coiScan.otherEmails.length,
+              expirationDates: coiScan.expirationDates,
+            });
+          } catch (err) {
+            console.error("[submit] COI scan failed (non-critical):", String(err));
+          }
+        }
+
         const uploadedFiles = Array.from(sessionFiles.entries()).map(([key, f]) => ({
           name: f.name,
           mimeType: f.mimeType,
@@ -964,7 +1081,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Send to dispatch ──
-    const htmlBody = await buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo });
+    const htmlBody = await buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan });
     await resend.emails.send({
       from: FROM,
       to: ["setup@simonexpress.com"],

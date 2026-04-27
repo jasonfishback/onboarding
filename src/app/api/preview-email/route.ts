@@ -158,6 +158,14 @@ export async function GET(req: NextRequest) {
     };
   }
 
+  // Mock COI scan data for preview — only populated for "alerts" scenario
+  const coiScan = scenario === "alerts" ? {
+    producerEmail: "certs@cuiagency.com",
+    otherEmails: ["dispatch@democarrier.com", "claims@fallslakeins.com"],
+    textExtracted: true,
+    expirationDates: ["12/31/2024"], // expired — will trigger alert
+  } : null;
+
   const html = await buildDispatchEmail({
     companyData,
     fmcsaData,
@@ -166,6 +174,7 @@ export async function GET(req: NextRequest) {
     sigData,
     ipAddress,
     geoInfo,
+    coiScan,
   });
 
   // Return rendered HTML directly to the browser
