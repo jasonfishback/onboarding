@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
 
     // For DOT lookups where MC# wasn't returned directly,
     // try the carrier's operating authority endpoint
+    let _authDebug: unknown = null;
     if (mode === "DOT" && !mc && c.dotNumber) {
       try {
         const authRes = await fetch(
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest) {
         );
         if (authRes.ok) {
           const authJson = await authRes.json();
+          _authDebug = authJson;  // capture entire response for inspection
           const auths = authJson?.content;
           if (Array.isArray(auths) && auths.length > 0) {
             // Find first MC authority
@@ -54,9 +56,11 @@ export async function GET(req: NextRequest) {
               mc = `${mcAuth.prefix}${mcAuth.docketNumber}`;
             }
           }
+        } else {
+          _authDebug = { status: authRes.status, statusText: authRes.statusText };
         }
-      } catch {
-        // Non-critical — DOT-only carriers may not have an MC
+      } catch (e) {
+        _authDebug = { error: String(e) };
       }
     }
 
@@ -248,6 +252,7 @@ export async function GET(req: NextRequest) {
         contractAuthorityStatus: c.contractAuthorityStatus ? String(c.contractAuthorityStatus) : "",
         brokerAuthorityStatus: c.brokerAuthorityStatus ? String(c.brokerAuthorityStatus) : "",
         source: "fmcsa",
+        _authDebug,
       },
     });
   } catch (err) {
