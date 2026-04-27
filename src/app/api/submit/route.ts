@@ -387,7 +387,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
       const isUSA = !geoInfo.countryCode || geoInfo.countryCode === "US";
       const proxyFlag = geoInfo.proxy && geoInfo.proxy !== "No";
       const ipColor = !isUSA ? "#ff6b6b" : proxyFlag ? "#ffaa00" : "#ffffff";
-      return `<br><span style="color:#9ca3af">🌐 Submitted from: <span style="color:${ipColor};font-weight:700">${ipAddress}</span>${ipLoc ? ` · <span style="color:${ipColor}">${ipLoc}${!isUSA && geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}${geoInfo.isp ? ` · <span style="color:#d4d4d8">${geoInfo.isp}</span>` : ""}${proxyFlag ? ` · <strong style="color:#ff6b6b">🚩 PROXY/VPN</strong>` : ""}</span>`;
+      const deviceIcon = geoInfo.deviceType === "mobile" ? "📱" : geoInfo.deviceType === "tablet" ? "📱" : "💻";
+      const deviceLabel = geoInfo.deviceType === "mobile" ? "Mobile" : geoInfo.deviceType === "tablet" ? "Tablet" : "Desktop";
+      // ip-api flags carrier mobile networks; UA detects the actual device. They usually agree but can differ
+      // (e.g., phone on home Wi-Fi → UA says mobile but IP isn't on a mobile network)
+      const mobileNetwork = geoInfo.mobile === "Yes";
+      const deviceTooltip = mobileNetwork && geoInfo.deviceType === "desktop"
+        ? ` <span style="color:#9ca3af;font-size:11px">(via mobile network)</span>`
+        : "";
+      return `<br><span style="color:#9ca3af">🌐 Submitted from: <span style="color:${ipColor};font-weight:700">${ipAddress}</span>${ipLoc ? ` · <span style="color:${ipColor}">${ipLoc}${!isUSA && geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}${geoInfo.isp ? ` · <span style="color:#d4d4d8">${geoInfo.isp}</span>` : ""} · <span style="color:#d4d4d8">${deviceIcon} ${deviceLabel}</span>${deviceTooltip}${proxyFlag ? ` · <strong style="color:#ff6b6b">🚩 PROXY/VPN</strong>` : ""}</span>`;
     })() : ""}
     ${(fmcsaData?.mcs150Date && fmcsaData.mcs150Date !== "Current") ? `<br><span style="color:#9ca3af">📋 MCS-150 filed: <span style="color:#ffffff">${fmcsaData.mcs150Date as string}</span></span>` : ""}
   </p>
@@ -827,6 +835,14 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ||
       "Unknown";
 
+    // Capture User-Agent — tells us if they submitted from a phone vs computer
+    // (useful cross-check against ip-api's mobile-network flag, which only flags mobile carriers)
+    const userAgent = req.headers.get("user-agent") || "";
+    // Detect mobile device from UA: phones, tablets, and common mobile browsers
+    const uaIsMobile = /Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|webOS/i.test(userAgent);
+    const uaIsTablet = /iPad|Android(?!.*Mobile)|Tablet/i.test(userAgent);
+    const deviceType = uaIsTablet ? "tablet" : uaIsMobile ? "mobile" : "desktop";
+
     // Geo-lookup the IP (free, no API key needed)
     let geoInfo: Record<string, string> = {};
     if (ipAddress && ipAddress !== "Unknown" && !ipAddress.startsWith("127.") && !ipAddress.startsWith("::1")) {
@@ -849,12 +865,19 @@ export async function POST(req: NextRequest) {
               mobile: geo.mobile ? "Yes" : "No",
               proxy: geo.proxy ? "⚠ Yes" : "No",
               hosting: geo.hosting ? "Yes (VPN/Hosting)" : "No",
+              deviceType,
+              userAgent,
             };
           }
         }
       } catch (err) {
         console.log("[submit] geo lookup failed (non-critical):", String(err));
       }
+    }
+    // Even if geo lookup failed, ensure deviceType is available
+    if (!geoInfo.deviceType) {
+      geoInfo.deviceType = deviceType;
+      geoInfo.userAgent = userAgent;
     }
 
     const companyName = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
