@@ -387,7 +387,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
       const isUSA = !geoInfo.countryCode || geoInfo.countryCode === "US";
       const proxyFlag = geoInfo.proxy && geoInfo.proxy !== "No";
       const ipColor = !isUSA ? "#ff6b6b" : proxyFlag ? "#ffaa00" : "#ffffff";
-      return `<br><span style="color:#9ca3af">🌐 Submitted from: <span style="color:${ipColor};font-weight:700">${ipAddress}</span>${ipLoc ? ` · <span style="color:${ipColor}">${ipLoc}${!isUSA && geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}${proxyFlag ? ` · <strong style="color:#ff6b6b">🚩 PROXY/VPN</strong>` : ""}</span>`;
+      return `<br><span style="color:#9ca3af">🌐 Submitted from: <span style="color:${ipColor};font-weight:700">${ipAddress}</span>${ipLoc ? ` · <span style="color:${ipColor}">${ipLoc}${!isUSA && geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}${geoInfo.isp ? ` · <span style="color:#d4d4d8">${geoInfo.isp}</span>` : ""}${proxyFlag ? ` · <strong style="color:#ff6b6b">🚩 PROXY/VPN</strong>` : ""}</span>`;
     })() : ""}
     ${(fmcsaData?.mcs150Date && fmcsaData.mcs150Date !== "Current") ? `<br><span style="color:#9ca3af">📋 MCS-150 filed: <span style="color:#ffffff">${fmcsaData.mcs150Date as string}</span></span>` : ""}
   </p>
