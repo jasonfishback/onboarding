@@ -38,7 +38,6 @@ export async function GET(req: NextRequest) {
 
     // For DOT lookups where MC# wasn't returned directly,
     // try the carrier's operating authority endpoint
-    let _authDebug: unknown = null;
     if (mode === "DOT" && !mc && c.dotNumber) {
       try {
         const authRes = await fetch(
@@ -47,20 +46,22 @@ export async function GET(req: NextRequest) {
         );
         if (authRes.ok) {
           const authJson = await authRes.json();
-          _authDebug = authJson;  // capture entire response for inspection
           const auths = authJson?.content;
           if (Array.isArray(auths) && auths.length > 0) {
-            // Find first MC authority
-            const mcAuth = auths.find((a: Record<string, string>) => a.prefix === "MC") || auths[0];
+            // The actual response shape is { content: [{ carrierAuthority: {prefix, docketNumber, ...} }] }
+            // — each entry wraps the authority record under `carrierAuthority`.
+            // Find first MC authority across all entries
+            const allRecords = auths
+              .map((a: Record<string, unknown>) => (a.carrierAuthority as Record<string, unknown>) || a)
+              .filter(Boolean);
+            const mcAuth = allRecords.find((a) => a.prefix === "MC") || allRecords[0];
             if (mcAuth?.prefix && mcAuth?.docketNumber) {
               mc = `${mcAuth.prefix}${mcAuth.docketNumber}`;
             }
           }
-        } else {
-          _authDebug = { status: authRes.status, statusText: authRes.statusText };
         }
-      } catch (e) {
-        _authDebug = { error: String(e) };
+      } catch {
+        // Non-critical — DOT-only carriers may not have an MC
       }
     }
 
@@ -252,7 +253,6 @@ export async function GET(req: NextRequest) {
         contractAuthorityStatus: c.contractAuthorityStatus ? String(c.contractAuthorityStatus) : "",
         brokerAuthorityStatus: c.brokerAuthorityStatus ? String(c.brokerAuthorityStatus) : "",
         source: "fmcsa",
-        _authDebug,
       },
     });
   } catch (err) {
