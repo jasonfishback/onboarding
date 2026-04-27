@@ -351,9 +351,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
 .sec{margin-bottom:22px;border:1px solid #e4e4e7;border-radius:10px;overflow:hidden}
 .sec-hdr{background:#fafafa;padding:12px 18px;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#71717a;border-bottom:1px solid #e4e4e7;display:flex;align-items:center;gap:8px}
 .sec-body{padding:18px 20px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px}
-.f .lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#a1a1aa;margin-bottom:3px;letter-spacing:.06em}
-.f .val{font-size:14px;color:#18181b;line-height:1.5}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f{background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px}
+.f .lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block}
+.f .val{font-size:14px;color:#18181b;line-height:1.5;display:block}
 .badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.02em}
 .bg{background:#edfaf3;color:#22a355;border:1px solid #22a355}
 .br{background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B}
@@ -465,14 +466,14 @@ ${(() => {
       <!-- ── Column distribution: simple 2-col grid, sub-grouped by topic ── -->
 
       <!-- Identity -->
-      <div class="f"><div class="lbl">Legal Name</div><div class="val" style="font-weight:700">${name}</div></div>
-      <div class="f"><div class="lbl">DBA</div><div class="val">${(companyData?.dba as string) || "—"}</div></div>
-      ${hasMc ? `<div class="f"><div class="lbl">MC #</div><div class="val"><a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mcDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${mcDigits} ↗</a></div></div>` : ""}
-      <div class="f"><div class="lbl">DOT #</div><div class="val">${hasDot
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Legal Name</div><div class="val" style="font-weight:700">${name}</div></div>
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">DBA</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(companyData?.dba as string) || "—"}</div></div>
+      ${hasMc ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">MC #</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mcDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${mcDigits} ↗</a></div></div>` : ""}
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">DOT #</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${hasDot
         ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dotDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${dotDigits} ↗</a>${likelyIntrastate ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ LIKELY INTRASTATE</span>` : ""}`
         : "—"
       }</div></div>
-      <div class="f"><div class="lbl">EIN / Tax ID</div><div class="val">${(() => {
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">EIN / Tax ID</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(() => {
         const userEin = ((companyData?.ein as string) || "").replace(/[^0-9]/g, "");
         const fmcsaEin = ((fmcsaData?.fmcsaEin as string) || "").replace(/[^0-9]/g, "");
         const display = (companyData?.ein as string) || "—";
@@ -481,7 +482,7 @@ ${(() => {
         if (userEin === fmcsaEin) return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES</span>`;
         return `${display} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ MISMATCH (FMCSA: ${fmcsaEin.slice(0,2)}-${fmcsaEin.slice(2)})</span>`;
       })()}</div></div>
-      <div class="f"><div class="lbl">Authority Status</div><div class="val">${(() => {
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Authority Status</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(() => {
         const f = (fmcsaData || {}) as Record<string, string>;
         const oos = f.outOfService === "Yes";
         if (oos) return `<strong style="color:#CC1B1B">⚠ OUT OF SERVICE</strong>`;
@@ -498,8 +499,8 @@ ${(() => {
       })()}</div></div>
 
       <!-- Primary Contact -->
-      <div class="f"><div class="lbl">Primary Contact</div><div class="val" style="font-weight:700">${(companyData?.contactName as string) || "—"}</div></div>
-      <div class="f"><div class="lbl">Primary Phone</div><div class="val">${(() => {
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Primary Contact</div><div class="val" style="font-weight:700">${(companyData?.contactName as string) || "—"}</div></div>
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Primary Phone</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(() => {
         const userPhone = ((companyData?.phone as string) || "").replace(/[^0-9]/g, "");
         const fmcsaPhone = ((fmcsaData?.phone as string) || "").replace(/[^0-9]/g, "");
         const display = (companyData?.phone as string) || "—";
@@ -516,8 +517,8 @@ ${(() => {
         }
         return `${display}${typeBadge}`;
       })()}</div></div>
-      ${dispatchDigits && !sameAsPrimary ? `<div class="f"><div class="lbl">Dispatch Phone</div><div class="val">${dispatchPhone}${dispatchPhoneTypeInfo ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>` : ""}</div></div>` : ""}
-      <div class="f"><div class="lbl">Primary Email</div><div class="val">${(() => {
+      ${dispatchDigits && !sameAsPrimary ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Dispatch Phone</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${dispatchPhone}${dispatchPhoneTypeInfo ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>` : ""}</div></div>` : ""}
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Primary Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(() => {
         const userEmail = primaryEmail.toLowerCase();
         const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
         const display = primaryEmail || "—";
@@ -527,25 +528,25 @@ ${(() => {
         if (userEmail === fmcsaEmail) return `${display}${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#edfaf3;color:#22a355;border:1px solid #22a355">✓ MATCHES</span>`;
         return `<span style="color:#CC1B1B;font-weight:700">${display}</span>${validBadge} <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff5f5;color:#CC1B1B;border:1px solid #CC1B1B">⚠ CHANGED — FMCSA: ${fmcsaEmail}</span>`;
       })()}</div></div>
-      ${dispatchEmail && !sameEmail ? `<div class="f"><div class="lbl">Dispatch Email</div><div class="val">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>` : ""}
-      ${billingEmail && !billingSameAsPrimary && !billingSameAsDispatch ? `<div class="f"><div class="lbl">Billing Email</div><div class="val">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>` : ""}
+      ${dispatchEmail && !sameEmail ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Dispatch Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>` : ""}
+      ${billingEmail && !billingSameAsPrimary && !billingSameAsDispatch ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Billing Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>` : ""}
       ${agentEmail ? (() => {
         const a = agentEmail.toLowerCase();
         if (a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase()) {
-          return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER</span></div></div>`;
+          return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER</span></div></div>`;
         }
-        return `<div class="f"><div class="lbl">COI Agent Email</div><div class="val">${agentEmail}${emailBadgeHtml(agentEmailValidation)}</div></div>`;
+        return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${agentEmail}${emailBadgeHtml(agentEmailValidation)}</div></div>`;
       })() : ""}
 
       <!-- Equipment -->
-      <div class="f"><div class="lbl">Power Units (Trucks)</div><div class="val">${(companyData?.truckCount as string) || "—"}${(fmcsaData?.truckCount && (fmcsaData.truckCount as string) !== (companyData?.truckCount as string)) ? ` <span style="color:#888;font-size:11px">(FMCSA: ${fmcsaData.truckCount as string})</span>` : ""}</div></div>
-      <div class="f"><div class="lbl">Trailers</div><div class="val">${(companyData?.trailerCount as string) || "—"}</div></div>
-      <div class="f" style="grid-column:1/-1"><div class="lbl">Trailer Types</div><div class="val">${trailers}</div></div>
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Power Units (Trucks)</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(companyData?.truckCount as string) || "—"}${(fmcsaData?.truckCount && (fmcsaData.truckCount as string) !== (companyData?.truckCount as string)) ? ` <span style="color:#888;font-size:11px">(FMCSA: ${fmcsaData.truckCount as string})</span>` : ""}</div></div>
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Trailers</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(companyData?.trailerCount as string) || "—"}</div></div>
+      <div class="f" style="grid-column:1/-1;background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Trailer Types</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${trailers}</div></div>
       ${(() => {
         // FMCSA-declared cargo types — list them all, highlighting whether Refrigerated Food is present
         const cargoArr = (fmcsaData?.cargoCarried as string[]) || [];
         if (cargoArr.length === 0) {
-          return `<div class="f" style="grid-column:1/-1"><div class="lbl">FMCSA Cargo Types</div><div class="val"><span style="color:#e07000;font-weight:600">⚠ None declared</span></div></div>`;
+          return `<div class="f" style="grid-column:1/-1;background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">FMCSA Cargo Types</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><span style="color:#e07000;font-weight:600">⚠ None declared</span></div></div>`;
         }
         const hasReefer = cargoArr.some(c => /refrigerated\s*food/i.test(c));
         const list = cargoArr.map(c => {
@@ -557,14 +558,14 @@ ${(() => {
         const flag = !hasReefer
           ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ NO REFRIGERATED FOOD</span>`
           : "";
-        return `<div class="f" style="grid-column:1/-1"><div class="lbl">FMCSA Cargo Types</div><div class="val">${list}${flag}</div></div>`;
+        return `<div class="f" style="grid-column:1/-1;background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">FMCSA Cargo Types</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${list}${flag}</div></div>`;
       })()}
-      ${(fmcsaData?.operationClass) ? `<div class="f"><div class="lbl">Operation Class</div><div class="val">${fmcsaData.operationClass as string}</div></div>` : ""}
-      ${fmcsaData?.hazmatFlag === "Yes" ? `<div class="f"><div class="lbl">Hazmat</div><div class="val"><strong style="color:#CC1B1B">⚠ Yes</strong></div></div>` : ""}
+      ${(fmcsaData?.operationClass) ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Operation Class</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${fmcsaData.operationClass as string}</div></div>` : ""}
+      ${fmcsaData?.hazmatFlag === "Yes" ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Hazmat</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><strong style="color:#CC1B1B">⚠ Yes</strong></div></div>` : ""}
 
       <!-- Payment Preferences -->
-      <div class="f"><div class="lbl">Quick Pay</div><div class="val">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
-      <div class="f"><div class="lbl">Factoring</div><div class="val">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Quick Pay</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${companyData?.wantsQuickPay ? '<span class="badge bg">✓ Yes (5% fee)</span>' : '<span class="badge bn">No</span>'}</div></div>
+      <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Factoring</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${companyData?.usesFactoring ? `<span class="badge br">Yes — ${(companyData?.factoringName as string) || ""}</span>` : '<span class="badge bn">No</span>'}</div></div>
 
       <!-- Insurance Filings (FMCSA) -->
       ${(() => {
@@ -599,7 +600,7 @@ ${(() => {
             onFileFmt ? `On file: <strong>${onFileFmt}</strong>` : "",
             requiredFmt ? `<span style="color:#888">Req: ${requiredFmt}</span>` : "",
           ].filter(Boolean).join(" · ") || "—";
-          return `<div class="f"><div class="lbl">${label}</div><div class="val">${parts}${status}</div></div>`;
+          return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">${label}</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${parts}${status}</div></div>`;
         };
         return insRow(f.bipdInsuranceOnFile, f.bipdInsuranceRequired || f.bipdRequiredAmount, "Liability (BIPD)")
           + insRow(f.cargoInsuranceOnFile, f.cargoInsuranceRequired, "Cargo Insurance")
@@ -625,15 +626,15 @@ ${(() => {
         const oosVeh = vOos > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B;font-weight:700">${vOos} OOS</span>` : "";
         const oosDr = dOos > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B;font-weight:700">${dOos} OOS</span>` : "";
 
-        let rows = `<div class="f"><div class="lbl">Vehicle Inspections (24 mo)</div><div class="val"><strong>${vInsp}</strong>${oosVeh}${totalInsp === 0 ? zeroAlert : ""}</div></div>`;
-        rows += `<div class="f"><div class="lbl">Driver Inspections (24 mo)</div><div class="val"><strong>${dInsp}</strong>${oosDr}</div></div>`;
+        let rows = `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Vehicle Inspections (24 mo)</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><strong>${vInsp}</strong>${oosVeh}${totalInsp === 0 ? zeroAlert : ""}</div></div>`;
+        rows += `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Driver Inspections (24 mo)</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><strong>${dInsp}</strong>${oosDr}</div></div>`;
         if (hInsp > 0) {
           const hOos = parseInt(f.hazmatOosInspections || "0", 10);
-          rows += `<div class="f"><div class="lbl">Hazmat Inspections (24 mo)</div><div class="val"><strong>${hInsp}</strong>${hOos > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B;font-weight:700">${hOos} OOS</span>` : ""}</div></div>`;
+          rows += `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Hazmat Inspections (24 mo)</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><strong>${hInsp}</strong>${hOos > 0 ? ` &nbsp;·&nbsp; <span style="color:#CC1B1B;font-weight:700">${hOos} OOS</span>` : ""}</div></div>`;
         }
         // ISS (Inspection Selection System) score — FMCSA's likelihood-of-roadside-inspection score
         if (f.issScore) {
-          rows += `<div class="f"><div class="lbl">ISS Score</div><div class="val">${f.issScore}</div></div>`;
+          rows += `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">ISS Score</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${f.issScore}</div></div>`;
         }
         return rows;
       })()}
@@ -652,11 +653,11 @@ ${(() => {
         if (injury > 0) parts.push(`${injury} injury`);
         if (towaway > 0) parts.push(`${towaway} tow-away`);
         const breakdown = parts.length > 0 ? ` &nbsp;(${parts.join(" · ")})` : "";
-        return `<div class="f" style="grid-column:1/-1"><div class="lbl">Crashes (24 mo)</div><div class="val"><strong style="color:${color}">${total}</strong>${breakdown}</div></div>`;
+        return `<div class="f" style="grid-column:1/-1;background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Crashes (24 mo)</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><strong style="color:${color}">${total}</strong>${breakdown}</div></div>`;
       })()}
 
       <!-- Agreement & Signature -->
-      <div class="f" style="grid-column:1/-1;border-top:1px solid #e4e4e7;padding-top:12px;margin-top:4px"><div class="lbl">Agreement Signed By</div><div class="val"><strong>${sig.signerName as string || "—"}</strong>${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""} &nbsp;<span style="color:#888;font-size:12px">on ${today}</span></div></div>
+      <div class="f" style="grid-column:1/-1;background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-top:8px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Agreement Signed By</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><strong>${sig.signerName as string || "—"}</strong>${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""} &nbsp;<span style="color:#888;font-size:12px">on ${today}</span></div></div>
     </div>
   </div>
 </div>
