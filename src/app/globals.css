@@ -1,102 +1,241 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-*, *::before, *::after {
-  box-sizing: border-box;
+/* ===========================================================
+   SIMON EXPRESS — Carrier Onboarding Design System
+   Matched to simonexpress.com tokens (frosted glass, gradient
+   buttons, layered shadows, headline shading, red accents)
+   =========================================================== */
+
+:root {
+  /* Brand colors — same tokens as simonexpress.com */
+  --red:    #D71920;
+  --red-2:  #B8141A;
+  --red-3:  #991013;
+  --ink:    #0B0B0C;
+  --ink-2:  #1F2024;
+  --paper:  #F8F9FA;
+  --white:  #FFFFFF;
+  --line:   #E5E7EB;
+  --line-2: #D1D5DB;
+  --mute:   #6B7280;
+  --mute-2: #9CA3AF;
+  --mute-3: #4B5563;
+  --green:  #16A34A;
+  --green-2:#15803D;
+  --amber:  #D97706;
+
+  /* Radius scale */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* Shadow stack */
+  --sh-sm: 0 1px 2px rgba(11,11,12,.06), 0 1px 1px rgba(11,11,12,.04);
+  --sh-md: 0 4px 12px rgba(11,11,12,.07), 0 2px 4px rgba(11,11,12,.05);
+  --sh-lg: 0 12px 28px rgba(11,11,12,.10), 0 6px 12px rgba(11,11,12,.06);
+  --sh-xl: 0 24px 56px rgba(11,11,12,.14), 0 10px 20px rgba(11,11,12,.08);
+  --sh-red: 0 8px 24px rgba(215,25,32,.30), 0 2px 6px rgba(215,25,32,.20);
+  --sh-red-glow: 0 0 0 1px rgba(215,25,32,.18), 0 12px 32px rgba(215,25,32,.32);
+
+  /* Top inset highlight on cards */
+  --inset-top: inset 0 1px 0 rgba(255,255,255,.65);
+
+  /* Fonts */
+  --f-display: 'Oswald', system-ui, sans-serif;
+  --f-body:    'Inter', system-ui, sans-serif;
+  --f-mono:    'JetBrains Mono', monospace;
+}
+
+/* ============== Reset / base ============== */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
   margin: 0;
   padding: 0;
 }
 
 body {
-  font-family: 'DM Sans', sans-serif;
-  background: #f5f3ef;
+  font-family: var(--f-body);
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 50% -200px, rgba(215,25,32,.06), transparent 60%),
+    linear-gradient(180deg, #FAFBFC 0%, #F1F3F5 100%);
+  background-attachment: fixed;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* The sketch border - use margin-right to make room for the shadow */
-.sketch-border {
-  border: 2px solid #1a1a1a;
-  border-radius: 2px;
-  box-shadow: 3px 3px 0 #1a1a1a;
-}
-
-/* All inputs respect box-sizing */
-input, select, textarea {
+input, select, textarea, button {
+  font-family: inherit;
   box-sizing: border-box;
 }
 
-/* Page wrapper - constrain width properly */
+/* ============== Page wrapper ============== */
 .step-wrapper {
   width: 100%;
-  max-width: 620px;
+  max-width: 680px;
   margin: 0 auto;
-  padding: 32px 24px 32px 24px;
+  padding: 32px 20px 64px;
 }
 
-/* Card that won't clip its shadow */
-.step-card {
-  background: white;
-  border: 2px solid #1a1a1a;
-  border-radius: 2px;
-  box-shadow: 3px 3px 0 #1a1a1a;
-  padding: 20px;
+/* ============== Cards ============== */
+.step-card,
+.sketch-border {
+  position: relative;
+  background: linear-gradient(180deg, var(--white) 0%, var(--paper) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-md), var(--inset-top);
+  padding: 24px;
   margin-bottom: 16px;
-  /* Don't clip - shadow needs room */
   overflow: visible;
+  transition: box-shadow .25s ease, transform .25s ease;
 }
 
+/* Cards with a subtle red accent rule along the top edge */
+.step-card.accent-top::before,
+.sketch-border.accent-top::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 24px; right: 24px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--red), transparent);
+  border-radius: 2px;
+  opacity: .85;
+}
+
+/* ============== Section title ============== */
 .section-title {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
+  font-family: var(--f-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: .02em;
   margin-bottom: 14px;
-  padding-bottom: 8px;
-  border-bottom: 1.5px dashed #ddd;
-  color: #1a1a1a;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  text-transform: uppercase;
 }
 
+/* ============== Field grid / inputs ============== */
 .field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 16px;
+  gap: 4px 16px;
 }
-
-.field-grid .full {
-  grid-column: 1 / -1;
-}
+.field-grid .full { grid-column: 1 / -1; }
 
 .field-label {
   display: block;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  color: #555;
-  margin-bottom: 4px;
+  font-family: var(--f-body);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mute-3);
+  margin-bottom: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .field-input {
   width: 100%;
-  padding: 8px 10px;
-  border: 2px solid #1a1a1a;
-  border-radius: 2px;
-  font-family: 'DM Sans', sans-serif;
+  padding: 11px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  font-family: var(--f-body);
   font-size: 14px;
-  background: #fafaf8;
+  color: var(--ink);
+  background: var(--white);
   outline: none;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
-
+.field-input:hover { border-color: var(--mute-2); }
 .field-input:focus {
-  border-color: #CC1B1B;
-  background: white;
+  border-color: var(--red);
+  background: var(--white);
+  box-shadow: 0 0 0 3px rgba(215,25,32,.12);
 }
 
+/* ============== Headlines (layered shading like marketing site) ============== */
+.headline {
+  font-family: var(--f-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  color: var(--ink);
+  text-shadow:
+    0 1px 0 rgba(255,255,255,.9),
+    0 2px 1px rgba(11,11,12,.04),
+    0 4px 8px rgba(11,11,12,.06);
+}
+.headline .accent {
+  color: var(--red);
+  text-shadow:
+    0 1px 0 rgba(255,255,255,.9),
+    0 2px 1px rgba(11,11,12,.05),
+    0 8px 24px rgba(215,25,32,.20);
+}
+
+/* ============== Eyebrow / step pill ============== */
+.eyebrow {
+  display: inline-block;
+  font-family: var(--f-body);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--red);
+  background: rgba(215,25,32,.08);
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin-bottom: 14px;
+  border: 1px solid rgba(215,25,32,.18);
+}
+
+/* ============== Animations ============== */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
+  to   { opacity: 1; transform: none; }
+}
+.fade-in { animation: fadeIn .35s ease both; }
+
+/* Flashing-lights animation across the top bar of the stepper */
+@keyframes lightSweep {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+@keyframes lightPulse {
+  0%, 100% { opacity: .4; transform: scale(1); }
+  50%      { opacity: 1;  transform: scale(1.2); }
+}
+@keyframes ringPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(215,25,32,.55); }
+  50%      { box-shadow: 0 0 0 8px rgba(215,25,32,0); }
 }
 
+/* ============== Responsive ============== */
+@media (max-width: 640px) {
+  .step-wrapper { padding: 20px 14px 56px; }
+  .step-card,
+  .sketch-border { padding: 18px; border-radius: var(--r-md); }
+  .field-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .field-grid .full { grid-column: auto; }
+}
+
+@media (max-width: 380px) {
+  .step-wrapper { padding: 16px 10px 48px; }
+  .step-card,
+  .sketch-border { padding: 16px; }
+}

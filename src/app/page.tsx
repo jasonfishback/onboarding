@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { DARK } from "@/components/ui";
 import ProgressBar from "@/components/ProgressBar";
 import Step1, { type CarrierData } from "@/components/Step1";
 import Step2 from "@/components/Step2";
@@ -42,21 +41,99 @@ export default function Home() {
   const companyName = ((companyData?.legalName as string) || fmcsaData?.name || "");
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f5f3ef" }}>
-      <div style={{ background: DARK, padding: "0 24px 0 0", display: "flex", alignItems: "stretch", gap: 0 }}>
-        {/* Logo on white background */}
-        <div style={{ background: "white", padding: "6px 16px", display: "flex", alignItems: "center" }}>
-          <img src="/logo.jpg" alt="Simon Express" style={{ height: 48, objectFit: "contain" }} />
+    <div style={{ minHeight: "100vh" }}>
+      {/* ============================================================
+          MINIMAL HEADER — logo + mark + help phone (no nav).
+          Frosted glass treatment matches the marketing site.
+          ============================================================ */}
+      <header
+        style={{
+          position: "relative",
+          background: "rgba(255, 255, 255, 0.78)",
+          backdropFilter: "saturate(180%) blur(14px)",
+          WebkitBackdropFilter: "saturate(180%) blur(14px)",
+          borderBottom: "1px solid rgba(229, 231, 235, .85)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 880,
+            margin: "0 auto",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+          }}
+        >
+          <img
+            src="/logo.jpg"
+            alt="Simon Express"
+            style={{ height: 38, objectFit: "contain", display: "block" }}
+          />
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              lineHeight: 1.15,
+              borderLeft: "1px solid #E5E7EB",
+              paddingLeft: 14,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "Oswald, system-ui, sans-serif",
+                fontSize: 14,
+                fontWeight: 600,
+                color: "#0B0B0C",
+                letterSpacing: ".05em",
+                textTransform: "uppercase",
+              }}
+            >
+              Carrier Onboarding
+            </span>
+            <span
+              style={{
+                fontFamily: "Inter, system-ui, sans-serif",
+                fontSize: 11,
+                color: "#6B7280",
+              }}
+            >
+              Salt Lake City, Utah
+            </span>
+          </div>
+
+          <div
+            style={{
+              marginLeft: "auto",
+              fontFamily: "Inter, system-ui, sans-serif",
+              fontSize: 13,
+              color: "#6B7280",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+            className="help-line"
+          >
+            <span className="help-text">Need help?</span>
+            <a
+              href="tel:8012607010"
+              style={{
+                color: "#D71920",
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              801-260-7010
+            </a>
+          </div>
         </div>
-        {/* Divider + text */}
-        <div style={{ borderLeft: "1.5px solid #444", paddingLeft: 20, display: "flex", flexDirection: "column", justifyContent: "center", marginLeft: 4 }}>
-          <div style={{ fontFamily: "DM Sans", fontSize: 16, color: "white", fontWeight: 700 }}>Carrier Onboarding</div>
-          <div style={{ fontSize: 12, color: "#aaa" }}>Salt Lake City, Utah</div>
-        </div>
-        <div style={{ marginLeft: "auto", fontFamily: "DM Sans", fontSize: 14, color: "#888", display: "flex", alignItems: "center" }}>
-          Need help? <a href="tel:8012607010" style={{ color: "#aaa", marginLeft: 4 }}>801-260-7010</a>
-        </div>
-      </div>
+
+        <style jsx>{`
+          @media (max-width: 480px) {
+            .help-text { display: none; }
+          }
+        `}</style>
+      </header>
 
       {step < 5 && <ProgressBar current={step} />}
 
