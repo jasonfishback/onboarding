@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { DARK } from "./ui";
 
 interface AddressAutocompleteProps {
   value: string;
@@ -17,19 +16,34 @@ interface Prediction {
   description: string;
 }
 
-export default function AddressAutocomplete({ value, onChange, onSelect, placeholder, required, error }: AddressAutocompleteProps) {
+const RED = "#D71920";
+
+export default function AddressAutocomplete({
+  value,
+  onChange,
+  onSelect,
+  placeholder,
+  required,
+  error,
+}: AddressAutocompleteProps) {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [showList, setShowList] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState(false);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const suppressNextFetch = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Tracks whether the current `value` was just placed there by a selection
+  // (vs. typed by the user). True = don't fetch and don't reopen on focus.
+  const justSelectedRef = useRef(false);
 
   // Debounced suggestion lookup
   useEffect(() => {
-    if (suppressNextFetch.current) {
-      suppressNextFetch.current = false;
+    // If the value was set by a prediction click, skip this fetch.
+    if (justSelectedRef.current) {
+      // Don't reset the flag here — only typing should reset it (see onChange).
       return;
     }
     if (!value || value.length < 3) {
@@ -41,11 +55,14 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/places?mode=suggest&q=${encodeURIComponent(value)}`);
+        const res = await fetch(
+          `/api/places?mode=suggest&q=${encodeURIComponent(value)}`
+        );
         if (res.ok) {
           const data = await res.json();
-          setPredictions(data.predictions || []);
-          setShowList((data.predictions || []).length > 0);
+          const list = data.predictions || [];
+          setPredictions(list);
+          setShowList(list.length > 0);
           setHighlightIdx(-1);
         }
       } catch {
@@ -62,7 +79,10 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
   // Click outside to close
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setShowList(false);
       }
     };
@@ -70,13 +90,28 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
+  const handleUserType = (v: string) => {
+    // User is typing — they want to search again
+    justSelectedRef.current = false;
+    onChange(v);
+  };
+
   const handleSelect = async (p: Prediction) => {
+    // Lock down the dropdown immediately and prevent re-opens
+    justSelectedRef.current = true;
     setShowList(false);
-    // Show description in input, then fetch details and fill all fields
-    suppressNextFetch.current = true;
+    setPredictions([]);
+    setHighlightIdx(-1);
+
     onChange(p.description);
+
+    // Blur the input so onFocus can't fire and re-trigger anything
+    inputRef.current?.blur();
+
     try {
-      const res = await fetch(`/api/places?mode=details&placeId=${encodeURIComponent(p.placeId)}`);
+      const res = await fetch(
+        `/api/places?mode=details&placeId=${encodeURIComponent(p.placeId)}`
+      );
       if (res.ok) {
         const data = await res.json();
         onSelect({
@@ -95,10 +130,10 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
     if (!showList || predictions.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlightIdx(i => Math.min(i + 1, predictions.length - 1));
+      setHighlightIdx((i) => Math.min(i + 1, predictions.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightIdx(i => Math.max(i - 1, 0));
+      setHighlightIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter" && highlightIdx >= 0) {
       e.preventDefault();
       handleSelect(predictions[highlightIdx]);
@@ -107,66 +142,140 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
     }
   };
 
+  const handleFocus = () => {
+    setFocused(true);
+    // Only reopen the list if user is actively searching (not after a select)
+    if (!justSelectedRef.current && predictions.length > 0) {
+      setShowList(true);
+    }
+  };
+
+  const handleBlur = () => {
+    setFocused(false);
+  };
+
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
-      <label style={{ display: "block", fontFamily: "DM Sans", fontSize: 11, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>
-        Street Address {required && <span style={{ color: "#CC1B1B" }}>*</span>}
+      <label className="field-label" style={{ marginBottom: 6 }}>
+        Street Address{" "}
+        {required && <span style={{ color: RED }}>*</span>}
       </label>
+
       <input
+        ref={inputRef}
         type="text"
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e) => handleUserType(e.target.value)}
         onKeyDown={handleKeyDown}
-        onFocus={() => predictions.length > 0 && setShowList(true)}
-        placeholder={placeholder || "Start typing address..."}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        placeholder={placeholder || "Start typing address…"}
         autoComplete="off"
         style={{
           width: "100%",
-          padding: "10px 12px",
-          fontFamily: "DM Sans",
+          padding: "11px 14px",
+          fontFamily: "Inter, system-ui, sans-serif",
           fontSize: 14,
-          background: error ? "#fff5f5" : "white",
-          border: `2px solid ${error ? "#CC1B1B" : DARK}`,
-          borderRadius: 2,
+          color: "#0B0B0C",
+          background: error ? "#FFF5F5" : "#FFFFFF",
+          border: `1px solid ${error ? RED : focused ? RED : "#D1D5DB"}`,
+          borderRadius: 10,
           outline: "none",
           boxSizing: "border-box",
+          boxShadow: focused ? "0 0 0 3px rgba(215,25,32,.12)" : "none",
+          transition: "border-color .15s ease, box-shadow .15s ease",
         }}
       />
+
       {loading && (
-        <div style={{ position: "absolute", right: 12, top: 34, fontSize: 11, color: "#888" }}>…</div>
+        <div
+          style={{
+            position: "absolute",
+            right: 14,
+            top: 38,
+            fontSize: 11,
+            color: "#9CA3AF",
+          }}
+          aria-hidden="true"
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: RED,
+              animation: "lightPulse 1.2s ease-in-out infinite",
+            }}
+          />
+        </div>
       )}
+
       {showList && predictions.length > 0 && (
-        <div style={{
-          position: "absolute",
-          top: "100%",
-          left: 0,
-          right: 0,
-          background: "white",
-          border: "2px solid " + DARK,
-          borderTop: "none",
-          maxHeight: 240,
-          overflowY: "auto",
-          zIndex: 50,
-          boxShadow: "2px 4px 0 rgba(0,0,0,.08)",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            background: "#FFFFFF",
+            border: "1px solid #E5E7EB",
+            borderRadius: 12,
+            maxHeight: 240,
+            overflowY: "auto",
+            zIndex: 50,
+            boxShadow:
+              "0 12px 28px rgba(11,11,12,.10), 0 6px 12px rgba(11,11,12,.06)",
+          }}
+        >
           {predictions.map((p, i) => (
             <div
               key={p.placeId}
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(p); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(p);
+              }}
               onMouseEnter={() => setHighlightIdx(i)}
               style={{
-                padding: "10px 12px",
+                padding: "11px 14px",
                 fontSize: 13,
-                fontFamily: "DM Sans",
+                fontFamily: "Inter, system-ui, sans-serif",
+                color: "#0B0B0C",
                 cursor: "pointer",
-                background: highlightIdx === i ? "#f5f3ef" : "white",
-                borderBottom: i < predictions.length - 1 ? "1px solid #eee" : "none",
+                background:
+                  highlightIdx === i ? "rgba(215,25,32,.06)" : "transparent",
+                borderBottom:
+                  i < predictions.length - 1 ? "1px solid #F3F4F6" : "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                transition: "background .12s ease",
               }}
             >
-              📍 {p.description}
+              <span
+                style={{
+                  color: highlightIdx === i ? RED : "#9CA3AF",
+                  fontSize: 14,
+                  flexShrink: 0,
+                  transition: "color .12s ease",
+                }}
+              >
+                📍
+              </span>
+              <span style={{ lineHeight: 1.4 }}>{p.description}</span>
             </div>
           ))}
-          <div style={{ padding: "6px 12px", fontSize: 10, color: "#888", fontStyle: "italic", borderTop: "1px solid #eee", textAlign: "right" }}>
+          <div
+            style={{
+              padding: "6px 14px",
+              fontSize: 10,
+              color: "#9CA3AF",
+              fontStyle: "italic",
+              borderTop: "1px solid #F3F4F6",
+              textAlign: "right",
+              fontFamily: "Inter, system-ui, sans-serif",
+            }}
+          >
             powered by Google
           </div>
         </div>
