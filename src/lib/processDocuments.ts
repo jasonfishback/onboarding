@@ -12,18 +12,34 @@ const PAGE_HEIGHT = 792;
 const MARGIN = 36;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
-// ── Process a single image buffer: grayscale, auto-level, compress ──────────
-async function processImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
-  let pipeline = sharp(buffer);
+// ── Image processing constants ─────────────────────────────────────────────
+// Phones produce 4032×3024 (12MP) or higher. At 200 DPI, a Letter-sized page
+// only needs ~1700px wide. Going bigger just bloats the file.
+// 1600px wide × grayscale × JPEG-q70 = ~80-150 KB per page typically.
+const MAX_IMAGE_DIMENSION = 1700;
+const JPEG_QUALITY = 70;
 
-  // Convert PDF pages to image if needed (handled separately)
-  // For images: grayscale, normalize (auto-levels like CamScanner), sharpen, compress
+// ── Process a single image buffer: resize, grayscale, auto-level, compress ──
+async function processImage(buffer: Buffer, mimeType: string): Promise<Buffer> {
+  let pipeline = sharp(buffer, { failOn: "none" })
+    .rotate();  // Auto-rotate based on EXIF orientation (phones save sideways)
+
+  // Resize ONLY if larger than cap. `withoutEnlargement: true` keeps small
+  // scans at original resolution rather than blowing them up.
+  pipeline = pipeline.resize({
+    width: MAX_IMAGE_DIMENSION,
+    height: MAX_IMAGE_DIMENSION,
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+
+  // CamScanner pipeline: grayscale → auto-level (boost contrast) → sharpen → trim margins → JPEG
   pipeline = pipeline
-    .grayscale()                    // Convert to grayscale
-    .normalize()                    // Auto-level (boost contrast like CamScanner)
-    .sharpen({ sigma: 0.8 })        // Slight sharpen for scanned look
-    .trim({ threshold: 20 })        // Auto-crop white/light borders
-    .jpeg({ quality: 72, progressive: true });  // Compress to JPEG
+    .grayscale()
+    .normalize()
+    .sharpen({ sigma: 0.8 })
+    .trim({ threshold: 20 })
+    .jpeg({ quality: JPEG_QUALITY, progressive: true, mozjpeg: true });
 
   return pipeline.toBuffer();
 }

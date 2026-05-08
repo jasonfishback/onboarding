@@ -1081,28 +1081,168 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Send to dispatch ──
+    // CRITICAL: This email MUST go through. Multi-layer reliability:
+    //  - If total payload > 35MB, pre-emptively split into TWO emails
+    //    (notification with no attachments + docs-only follow-up)
+    //  - If main send still fails, retry without attachments + warning banner
+    //  - Carrier confirmation send is independent — its failure doesn't block dispatch
     const htmlBody = await buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan });
-    await resend.emails.send({
-      from: FROM,
-      to: ["setup@simonexpress.com"],
-      subject: `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`,
-      html: htmlBody,
-      attachments,
-    });
-    console.log("[submit] dispatch email sent with", attachments.length, "PDF(s)");
 
-    // ── 4. Send confirmation to carrier ──
-    if (carrierEmail) {
-      await resend.emails.send({
-        from: FROM,
-        to: [carrierEmail],
-        subject: `✓ Simon Express — Carrier Application Received`,
-        html: buildCarrierConfirmEmail(companyName, today, (((companyData?.mc as string) || (fmcsaData?.mc as string) || "").replace(/[^0-9]/g, "") || undefined), (((companyData?.dot as string) || (fmcsaData?.dot as string) || "").replace(/[^0-9]/g, "") || undefined)),
-      });
-      console.log("[submit] carrier confirmation sent to:", carrierEmail);
+    // Resend has a ~40MB email size limit (after base64 encoding adds ~33% overhead).
+    // We split pre-emptively at 35MB to leave headroom for headers + html body.
+    const totalAttachmentBytes = attachments.reduce((sum, a) => sum + (a.content?.length || 0), 0);
+    const totalAttachmentMB = totalAttachmentBytes / 1024 / 1024;
+    const SAFE_LIMIT_MB = 35;
+    const overSizeLimit = totalAttachmentMB > SAFE_LIMIT_MB;
+
+    console.log("[submit] dispatch email — total attachment payload:", Math.round(totalAttachmentMB * 10) / 10, "MB across", attachments.length, "PDF(s)", overSizeLimit ? "[OVER LIMIT - WILL SPLIT]" : "[OK]");
+
+    const dispatchSubject = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
+    let dispatchSent = false;
+    let dispatchError: string | undefined;
+
+    if (overSizeLimit) {
+      // ─── Split path: notification first (no attachments), docs follow-up second ───
+      const splitHtml = `<div style="background:#e7f3ff;border:1px solid #2563eb;border-radius:8px;padding:12px;margin-bottom:16px;font-family:system-ui,sans-serif;">
+  <strong style="color:#1e3a8a;">📎 Documents are sent in a separate email</strong>
+  <div style="font-size:13px;color:#1e3a8a;margin-top:4px;">
+    Total document size (${Math.round(totalAttachmentMB * 10) / 10} MB across ${attachments.length} PDFs) exceeds single-email limit. Look for the matching docs-only email arriving shortly.
+  </div>
+</div>${htmlBody}`;
+      try {
+        const notifResult = await resend.emails.send({
+          from: FROM,
+          to: ["setup@simonexpress.com"],
+          subject: `${dispatchSubject} (1 of 2 — notification)`,
+          html: splitHtml,
+        });
+        if (notifResult.error) throw new Error(`Resend API error on notif: ${JSON.stringify(notifResult.error)}`);
+        dispatchSent = true;
+        console.log("[submit] ✓ dispatch notification (1/2) sent, id:", notifResult.data?.id);
+      } catch (e) {
+        dispatchError = String(e);
+        console.error("[submit] ✗ dispatch notification (1/2) FAILED:", dispatchError);
+      }
+
+      // Send each attachment in its own email if needed, or batch them under SAFE_LIMIT_MB each.
+      const batches: Array<typeof attachments> = [];
+      let cur: typeof attachments = [];
+      let curBytes = 0;
+      for (const a of attachments) {
+        const aBytes = a.content?.length || 0;
+        if (curBytes + aBytes > SAFE_LIMIT_MB * 1024 * 1024 && cur.length > 0) {
+          batches.push(cur);
+          cur = [];
+          curBytes = 0;
+        }
+        cur.push(a);
+        curBytes += aBytes;
+      }
+      if (cur.length) batches.push(cur);
+
+      for (let bi = 0; bi < batches.length; bi++) {
+        const batchAttachments = batches[bi];
+        const batchSizeMB = Math.round(batchAttachments.reduce((s, a) => s + (a.content?.length || 0), 0) / 1024 / 1024 * 10) / 10;
+        try {
+          const docsHtml = `<div style="font-family:system-ui,sans-serif;padding:24px;color:#0B0B0C;">
+  <h2 style="margin:0 0 8px;color:#D71920;">${companyName} — Documents (${bi + 1} of ${batches.length})</h2>
+  <p style="margin:0 0 16px;color:#4B5563;font-size:14px;">${batchAttachments.length} document(s), ${batchSizeMB} MB.</p>
+  <ul style="font-size:13px;color:#1F2024;">
+    ${batchAttachments.map((a) => `<li>${a.filename}</li>`).join("")}
+  </ul>
+</div>`;
+          const docsResult = await resend.emails.send({
+            from: FROM,
+            to: ["setup@simonexpress.com"],
+            subject: `${dispatchSubject} (docs ${bi + 1} of ${batches.length})`,
+            html: docsHtml,
+            attachments: batchAttachments,
+          });
+          if (docsResult.error) throw new Error(`Resend API error on docs ${bi + 1}: ${JSON.stringify(docsResult.error)}`);
+          console.log(`[submit] ✓ dispatch docs (${bi + 1}/${batches.length}) sent, id:`, docsResult.data?.id);
+        } catch (e) {
+          console.error(`[submit] ✗ dispatch docs (${bi + 1}/${batches.length}) FAILED:`, String(e));
+          // Don't throw — at least the notification went through
+        }
+      }
+    } else {
+      // ─── Normal path: single email with all attachments ───
+      try {
+        const result = await resend.emails.send({
+          from: FROM,
+          to: ["setup@simonexpress.com"],
+          subject: dispatchSubject,
+          html: htmlBody,
+          attachments,
+        });
+        if (result.error) {
+          throw new Error(`Resend API error: ${JSON.stringify(result.error)}`);
+        }
+        dispatchSent = true;
+        console.log("[submit] ✓ dispatch email sent with", attachments.length, "PDF(s), id:", result.data?.id);
+      } catch (sendErr) {
+        dispatchError = String(sendErr);
+        console.error("[submit] ✗ dispatch email FAILED with attachments:", dispatchError);
+
+        // Fallback: retry WITHOUT attachments — at minimum, the team needs to
+        // know a new carrier signed up.
+        try {
+          const fallbackHtml = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:16px;font-family:system-ui,sans-serif;">
+  <strong style="color:#856404;">⚠ Attachments could not be delivered with this email.</strong>
+  <div style="font-size:13px;color:#856404;margin-top:4px;">
+    Reason: ${dispatchError.slice(0, 200)}<br>
+    Total attachment payload: ${Math.round(totalAttachmentMB * 10) / 10} MB across ${attachments.length} PDF(s).<br>
+    <strong>Carrier did still complete onboarding.</strong> Documents may need to be retrieved manually from the upload system, or carrier may need to resubmit.
+  </div>
+</div>${htmlBody}`;
+          const fallbackResult = await resend.emails.send({
+            from: FROM,
+            to: ["setup@simonexpress.com"],
+            subject: `⚠ ${dispatchSubject} (no attachments)`,
+            html: fallbackHtml,
+          });
+          if (fallbackResult.error) {
+            throw new Error(`Resend API error on fallback: ${JSON.stringify(fallbackResult.error)}`);
+          }
+          dispatchSent = true;
+          console.log("[submit] ✓ dispatch fallback (no attachments) sent, id:", fallbackResult.data?.id);
+        } catch (fallbackErr) {
+          console.error("[submit] ✗ dispatch fallback ALSO failed:", String(fallbackErr));
+          // Still don't throw — we want the carrier confirmation to send.
+        }
+      }
     }
 
-    return NextResponse.json({ success: true });
+    // ── 4. Send confirmation to carrier ──
+    let carrierSent = false;
+    if (carrierEmail) {
+      try {
+        const result = await resend.emails.send({
+          from: FROM,
+          to: [carrierEmail],
+          subject: `✓ Simon Express — Carrier Application Received`,
+          html: buildCarrierConfirmEmail(companyName, today, (((companyData?.mc as string) || (fmcsaData?.mc as string) || "").replace(/[^0-9]/g, "") || undefined), (((companyData?.dot as string) || (fmcsaData?.dot as string) || "").replace(/[^0-9]/g, "") || undefined)),
+        });
+        if (result.error) {
+          throw new Error(`Resend API error: ${JSON.stringify(result.error)}`);
+        }
+        carrierSent = true;
+        console.log("[submit] ✓ carrier confirmation sent to:", carrierEmail, "id:", result.data?.id);
+      } catch (carrierErr) {
+        console.error("[submit] ✗ carrier confirmation FAILED:", String(carrierErr));
+      }
+    }
+
+    // Summary log — easy to grep in Vercel logs
+    console.log("[submit] DONE — dispatchSent:", dispatchSent, "carrierSent:", carrierSent, "attachments:", attachments.length);
+
+    return NextResponse.json({
+      success: true,
+      dispatchSent,
+      carrierSent,
+      // Surface errors so client can detect partial failures if it wants
+      ...(dispatchError ? { dispatchError } : {}),
+    });
   } catch (err) {
     const e = err as Error;
     console.error("[submit] FATAL error:", e?.message || String(err));

@@ -26,12 +26,27 @@ export default function Home() {
     setSubmitting(true);
     goTo(5);
     try {
-      await fetch("/api/submit", {
+      const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fmcsaData, companyData, docsData, wcData, sigData: sig, sessionId: (docsData as Record<string,unknown>)?.sessionId }),
       });
-    } catch {
+      // fetch() resolves on 4xx/5xx — must check res.ok explicitly.
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "");
+        console.error("[client] /api/submit returned", res.status, errorText);
+        setSubmitError("We had trouble processing your submission. Please contact dispatch@simonexpress.com so we can verify everything came through.");
+        return;
+      }
+      const data = await res.json().catch(() => ({} as { dispatchSent?: boolean; carrierSent?: boolean }));
+      // Even on 200, the server may have failed to dispatch the internal email
+      if (data && data.dispatchSent === false) {
+        console.warn("[client] submit succeeded but dispatch email failed");
+        // We don't show this to the carrier — their submission IS recorded —
+        // but we log it so it shows up in browser dev tools / monitoring.
+      }
+    } catch (err) {
+      console.error("[client] submit network error:", err);
       setSubmitError("We had trouble sending your confirmation email, but your application was received. Please contact dispatch@simonexpress.com.");
     } finally {
       setSubmitting(false);
