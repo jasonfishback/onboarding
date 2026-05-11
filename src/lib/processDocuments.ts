@@ -107,6 +107,37 @@ export async function buildAttachmentsPdf(files: UploadedFile[], companyName: st
 
     // ── PDF files: merge pages directly ──────────────────────────────────
     if (mimeType === "application/pdf") {
+      // Pre-validate: try to load + save the PDF in isolation. If it fails
+      // here (e.g. "Unknown compression method in flate stream"), the file
+      // is malformed enough that pdf-lib will crash later during the final
+      // save. Bail early and add a placeholder page instead.
+      let isValid = false;
+      try {
+        const testDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+        const testWrap = await PDFDocument.create();
+        const [testPage] = await testWrap.copyPages(testDoc, [0]);
+        const testEmbedded = await testWrap.embedPage(testPage);
+        const testPdfPage = testWrap.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        testPdfPage.drawPage(testEmbedded);
+        await testWrap.save();  // ← This is where corrupt-stream PDFs throw
+        isValid = true;
+      } catch (validateErr) {
+        console.error(`[docs] PDF validation failed for "${name}" (corrupt stream / unsupported encoding):`, String(validateErr));
+        // Drop a placeholder page that includes a clear note for the dispatcher
+        const errPage = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        errPage.drawRectangle({ x: 0, y: PAGE_HEIGHT - 32, width: PAGE_WIDTH, height: 32, color: BLACK });
+        errPage.drawText(`SIMON EXPRESS  ·  ${label.toUpperCase()}`, { x: MARGIN, y: PAGE_HEIGHT - 20, size: 9, font: fontBold, color: WHITE });
+        errPage.drawText(name, { x: PAGE_WIDTH - MARGIN - 180, y: PAGE_HEIGHT - 20, size: 7, font: fontReg, color: rgb(0.6, 0.6, 0.6) });
+        errPage.drawText("⚠ Could not render this document", { x: MARGIN, y: PAGE_HEIGHT - 200, size: 16, font: fontBold, color: RED });
+        errPage.drawText(`File: ${name}`, { x: MARGIN, y: PAGE_HEIGHT - 230, size: 11, font: fontReg, color: BLACK });
+        errPage.drawText(`Type: ${mimeType}`, { x: MARGIN, y: PAGE_HEIGHT - 248, size: 11, font: fontReg, color: BLACK });
+        errPage.drawText(`Size: ${Math.round(buffer.length / 1024)} KB`, { x: MARGIN, y: PAGE_HEIGHT - 266, size: 11, font: fontReg, color: BLACK });
+        errPage.drawText("The carrier's original file is likely corrupt or uses an unsupported encoding.", { x: MARGIN, y: PAGE_HEIGHT - 300, size: 10, font: fontReg, color: GRAY });
+        errPage.drawText("Please request the carrier to re-upload this document.", { x: MARGIN, y: PAGE_HEIGHT - 316, size: 10, font: fontReg, color: GRAY });
+        errPage.drawText(`${label}  ·  Validation failed  ·  ${companyName}`, { x: MARGIN, y: 10, size: 6.5, font: fontReg, color: GRAY });
+      }
+      if (!isValid) continue;
+
       try {
         const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
         const srcPages = await doc.copyPages(srcDoc, srcDoc.getPageIndices());

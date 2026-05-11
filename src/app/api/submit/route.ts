@@ -1002,6 +1002,10 @@ export async function POST(req: NextRequest) {
     const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 35);
 
     // ── 1. Generate main onboarding packet PDF ──
+    // This is the LEGALLY-BINDING signed agreement. We generate this first
+    // and email it before doing ANY other work, so even if downstream
+    // fails (PDF processing errors, oversized uploads, timeouts) we
+    // ALWAYS have the signature preserved in our email.
     console.log("[submit] generating onboarding packet PDF...");
     console.log("[submit] sigData keys:", Object.keys(sigData || {}));
     console.log("[submit] signatureImage size:", (sigData?.signatureImage as string)?.length || 0);
@@ -1014,6 +1018,51 @@ export async function POST(req: NextRequest) {
     } catch (pdfErr) {
       console.error("[submit] PDF generation failed:", String(pdfErr));
       throw pdfErr;
+    }
+
+    // ── 1b. EARLY-DELIVERY: send the signed agreement immediately ──
+    // Subject prefix "[AGREEMENT-ONLY]" makes it easy to spot/filter these.
+    // If a downstream processing error fails the rest of the submit, we
+    // still have the legal signature on file.
+    const dispatchSubject = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
+    let earlyAgreementSent = false;
+    try {
+      const earlyHtml = `<div style="background:#e7f3ff;border:1px solid #2563eb;border-radius:8px;padding:12px;margin-bottom:16px;font-family:system-ui,sans-serif;">
+  <strong style="color:#1e3a8a;">📋 SIGNED AGREEMENT — EARLY DELIVERY</strong>
+  <div style="font-size:13px;color:#1e3a8a;margin-top:4px;">
+    This is the signed Broker-Carrier Agreement for <strong>${companyName}</strong> — emailed immediately on submit.<br>
+    Full onboarding packet with uploaded documents will follow in a separate email if processing succeeds.<br>
+    If you do <strong>not</strong> see a follow-up email shortly, the carrier hit a document processing error and may need to be contacted to re-upload.
+  </div>
+</div>
+<div style="font-family:system-ui,sans-serif;padding:16px;color:#0B0B0C;">
+  <h3 style="margin:0 0 8px;color:#D71920;">${companyName}</h3>
+  <table style="font-size:13px;color:#1F2024;">
+    <tr><td style="padding:2px 12px 2px 0;color:#6B7280;">MC#</td><td>${(companyData?.mc as string) || (fmcsaData?.mc as string) || "—"}</td></tr>
+    <tr><td style="padding:2px 12px 2px 0;color:#6B7280;">DOT#</td><td>${(companyData?.dot as string) || (fmcsaData?.dot as string) || "—"}</td></tr>
+    <tr><td style="padding:2px 12px 2px 0;color:#6B7280;">Carrier email</td><td>${carrierEmail || "—"}</td></tr>
+    <tr><td style="padding:2px 12px 2px 0;color:#6B7280;">Submitted from</td><td>${ipAddress} (${geoInfo.city || ""}${geoInfo.region ? ", " + geoInfo.region : ""}, ${geoInfo.deviceType || "?"})</td></tr>
+  </table>
+</div>`;
+      const earlyResult = await resend.emails.send({
+        from: FROM,
+        to: ["setup@simonexpress.com"],
+        subject: `[AGREEMENT-ONLY] ${dispatchSubject}`,
+        html: earlyHtml,
+        attachments: [{
+          filename: `Simon_Express_Onboarding_Packet_${safeName}.pdf`,
+          content: Buffer.from(packetBytes!).toString("base64"),
+        }],
+      });
+      if (earlyResult.error) {
+        throw new Error(`Resend API error on early-agreement: ${JSON.stringify(earlyResult.error)}`);
+      }
+      earlyAgreementSent = true;
+      console.log("[submit] ✓ early agreement email sent, id:", earlyResult.data?.id);
+    } catch (earlyErr) {
+      // Even if early-agreement send fails, continue — the main dispatch
+      // path may still work, OR the fallback (no attachments) path will fire.
+      console.error("[submit] ✗ early agreement send FAILED (will try again in main path):", String(earlyErr));
     }
 
     // ── 2. Generate attachments PDF (uploaded docs) ──
@@ -1039,6 +1088,12 @@ export async function POST(req: NextRequest) {
         console.error("[submit] W-9 PDF generation failed (non-critical):", String(w9Err));
       }
     }
+
+    // Track docs processing outcome so dispatch email can include a clear
+    // "go re-collect these docs from the carrier" notice if processing failed.
+    let docsFailed = false;
+    let docsFailureReason = "";
+    let droppedFiles: Array<{ label: string; name: string; size: number }> = [];
 
     if (sessionId) {
       const sessionFiles = getSessionFiles(sessionId);
@@ -1070,13 +1125,28 @@ export async function POST(req: NextRequest) {
           label: DOC_LABELS[key] || key,
         }));
 
-        const docsPdfBytes = await buildAttachmentsPdf(uploadedFiles, companyName);
-        console.log("[submit] attachments PDF:", docsPdfBytes.length, "bytes");
-
-        attachments.push({
-          filename: `Simon_Express_Documents_${safeName}.pdf`,
-          content: Buffer.from(docsPdfBytes).toString("base64"),
-        });
+        // Wrap in try/catch — if any single file breaks the entire docs PDF
+        // generation, we still want to deliver the main dispatch email with
+        // the agreement + W-9. We track the failure so the dispatch email can
+        // include a clear "follow up to re-collect these" notice.
+        try {
+          const docsPdfBytes = await buildAttachmentsPdf(uploadedFiles, companyName);
+          console.log("[submit] attachments PDF:", docsPdfBytes.length, "bytes");
+          attachments.push({
+            filename: `Simon_Express_Documents_${safeName}.pdf`,
+            content: Buffer.from(docsPdfBytes).toString("base64"),
+          });
+        } catch (docsErr) {
+          docsFailed = true;
+          docsFailureReason = String(docsErr).slice(0, 300);
+          droppedFiles = uploadedFiles.map((f) => ({
+            label: f.label,
+            name: f.name,
+            size: f.buffer.length,
+          }));
+          console.error("[submit] ✗ docs PDF generation FAILED (non-fatal):", docsFailureReason);
+          console.error("[submit] uploaded files were:", droppedFiles.map((f) => `${f.label}=${f.name} (${Math.round(f.size / 1024)} KB)`).join("; "));
+        }
       }
     }
 
@@ -1086,7 +1156,30 @@ export async function POST(req: NextRequest) {
     //    (notification with no attachments + docs-only follow-up)
     //  - If main send still fails, retry without attachments + warning banner
     //  - Carrier confirmation send is independent — its failure doesn't block dispatch
-    const htmlBody = await buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan });
+    let htmlBody = await buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan });
+
+    // If docs PDF generation failed, inject a yellow warning at the top of
+    // the dispatch email with the dropped-files list — so dispatch knows
+    // exactly what to re-collect from the carrier.
+    if (docsFailed) {
+      const droppedList = droppedFiles.map((f) =>
+        `<li style="margin:2px 0;"><strong>${f.label}</strong> — ${f.name} (${Math.round(f.size / 1024)} KB)</li>`
+      ).join("");
+      const warningBanner = `<div style="background:#fff3cd;border:1px solid #ffc107;border-left:4px solid #d39e00;border-radius:8px;padding:14px;margin:0 0 16px;font-family:system-ui,sans-serif;">
+  <strong style="color:#856404;font-size:14px;">⚠ DOCUMENT PROCESSING FAILED — RE-COLLECT FROM CARRIER</strong>
+  <div style="font-size:13px;color:#856404;margin-top:6px;line-height:1.5;">
+    The carrier's uploaded documents could not be assembled into a single PDF (likely a corrupt or unsupported file).
+    The signed agreement and W-9 are attached as normal, but the following docs were NOT included and need to be re-collected:
+  </div>
+  <ul style="font-size:13px;color:#5C4400;margin:8px 0 4px 20px;">
+    ${droppedList}
+  </ul>
+  <div style="font-size:11px;color:#856404;margin-top:8px;font-family:ui-monospace,Menlo,monospace;">
+    Reason: ${docsFailureReason}
+  </div>
+</div>`;
+      htmlBody = warningBanner + htmlBody;
+    }
 
     // Resend has a ~40MB email size limit (after base64 encoding adds ~33% overhead).
     // We split pre-emptively at 35MB to leave headroom for headers + html body.
@@ -1097,7 +1190,7 @@ export async function POST(req: NextRequest) {
 
     console.log("[submit] dispatch email — total attachment payload:", Math.round(totalAttachmentMB * 10) / 10, "MB across", attachments.length, "PDF(s)", overSizeLimit ? "[OVER LIMIT - WILL SPLIT]" : "[OK]");
 
-    const dispatchSubject = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
+    // dispatchSubject already declared above in the early-delivery section
     let dispatchSent = false;
     let dispatchError: string | undefined;
 
@@ -1234,14 +1327,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Summary log — easy to grep in Vercel logs
-    console.log("[submit] DONE — dispatchSent:", dispatchSent, "carrierSent:", carrierSent, "attachments:", attachments.length);
+    console.log("[submit] DONE — earlyAgreementSent:", earlyAgreementSent, "dispatchSent:", dispatchSent, "carrierSent:", carrierSent, "docsFailed:", docsFailed, "attachments:", attachments.length);
 
     return NextResponse.json({
       success: true,
+      earlyAgreementSent,
       dispatchSent,
       carrierSent,
+      docsFailed,
       // Surface errors so client can detect partial failures if it wants
       ...(dispatchError ? { dispatchError } : {}),
+      ...(docsFailed ? { docsFailureReason, droppedFiles: droppedFiles.map((f) => f.name) } : {}),
     });
   } catch (err) {
     const e = err as Error;
