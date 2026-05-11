@@ -1002,10 +1002,11 @@ export async function POST(req: NextRequest) {
     const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 35);
 
     // ── 1. Generate main onboarding packet PDF ──
-    // This is the LEGALLY-BINDING signed agreement. We generate this first
-    // and email it before doing ANY other work, so even if downstream
-    // fails (PDF processing errors, oversized uploads, timeouts) we
-    // ALWAYS have the signature preserved in our email.
+    // This is the LEGALLY-BINDING signed agreement. We generate it first so
+    // it's available in memory for the rest of the flow. If the normal
+    // dispatch email succeeds, the agreement goes in that one email (no
+    // duplicate). If the normal flow fails, we have a safety-net email
+    // ready to fire that delivers just the agreement.
     console.log("[submit] generating onboarding packet PDF...");
     console.log("[submit] sigData keys:", Object.keys(sigData || {}));
     console.log("[submit] signatureImage size:", (sigData?.signatureImage as string)?.length || 0);
@@ -1020,19 +1021,22 @@ export async function POST(req: NextRequest) {
       throw pdfErr;
     }
 
-    // ── 1b. EARLY-DELIVERY: send the signed agreement immediately ──
-    // Subject prefix "[AGREEMENT-ONLY]" makes it easy to spot/filter these.
-    // If a downstream processing error fails the rest of the submit, we
-    // still have the legal signature on file.
+    // Pre-build the agreement-only safety-net email and define a helper that
+    // sends it on demand. We use a single flag to make sure it never fires
+    // more than once — we want at most ONE email per submit unless we have
+    // a genuine reason to split.
     const dispatchSubject = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
-    let earlyAgreementSent = false;
-    try {
-      const earlyHtml = `<div style="background:#e7f3ff;border:1px solid #2563eb;border-radius:8px;padding:12px;margin-bottom:16px;font-family:system-ui,sans-serif;">
-  <strong style="color:#1e3a8a;">📋 SIGNED AGREEMENT — EARLY DELIVERY</strong>
-  <div style="font-size:13px;color:#1e3a8a;margin-top:4px;">
-    This is the signed Broker-Carrier Agreement for <strong>${companyName}</strong> — emailed immediately on submit.<br>
-    Full onboarding packet with uploaded documents will follow in a separate email if processing succeeds.<br>
-    If you do <strong>not</strong> see a follow-up email shortly, the carrier hit a document processing error and may need to be contacted to re-upload.
+    let safetyNetSent = false;
+    const sendAgreementSafetyNet = async (reason: string): Promise<boolean> => {
+      if (safetyNetSent) return true;
+      try {
+        const safetyHtml = `<div style="background:#fff3cd;border:1px solid #ffc107;border-left:4px solid #d39e00;border-radius:8px;padding:14px;margin-bottom:16px;font-family:system-ui,sans-serif;">
+  <strong style="color:#856404;">⚠ FALLBACK DELIVERY — Main dispatch email failed</strong>
+  <div style="font-size:13px;color:#856404;margin-top:6px;line-height:1.5;">
+    The main onboarding email for <strong>${companyName}</strong> could not be sent. As a safety net,
+    here's the signed Broker-Carrier Agreement so we don't lose it.<br><br>
+    <strong>Reason:</strong> ${reason}<br>
+    <strong>You may need to follow up with the carrier to collect any uploaded documents.</strong>
   </div>
 </div>
 <div style="font-family:system-ui,sans-serif;padding:16px;color:#0B0B0C;">
@@ -1044,26 +1048,27 @@ export async function POST(req: NextRequest) {
     <tr><td style="padding:2px 12px 2px 0;color:#6B7280;">Submitted from</td><td>${ipAddress} (${geoInfo.city || ""}${geoInfo.region ? ", " + geoInfo.region : ""}, ${geoInfo.deviceType || "?"})</td></tr>
   </table>
 </div>`;
-      const earlyResult = await resend.emails.send({
-        from: FROM,
-        to: ["setup@simonexpress.com"],
-        subject: `[AGREEMENT-ONLY] ${dispatchSubject}`,
-        html: earlyHtml,
-        attachments: [{
-          filename: `Simon_Express_Onboarding_Packet_${safeName}.pdf`,
-          content: Buffer.from(packetBytes!).toString("base64"),
-        }],
-      });
-      if (earlyResult.error) {
-        throw new Error(`Resend API error on early-agreement: ${JSON.stringify(earlyResult.error)}`);
+        const result = await resend.emails.send({
+          from: FROM,
+          to: ["setup@simonexpress.com"],
+          subject: `⚠ [SAFETY-NET] ${dispatchSubject}`,
+          html: safetyHtml,
+          attachments: [{
+            filename: `Simon_Express_Onboarding_Packet_${safeName}.pdf`,
+            content: Buffer.from(packetBytes!).toString("base64"),
+          }],
+        });
+        if (result.error) {
+          throw new Error(`Resend API error on safety-net: ${JSON.stringify(result.error)}`);
+        }
+        safetyNetSent = true;
+        console.log("[submit] ✓ safety-net agreement email sent, id:", result.data?.id, "reason:", reason);
+        return true;
+      } catch (err) {
+        console.error("[submit] ✗ safety-net agreement email FAILED:", String(err));
+        return false;
       }
-      earlyAgreementSent = true;
-      console.log("[submit] ✓ early agreement email sent, id:", earlyResult.data?.id);
-    } catch (earlyErr) {
-      // Even if early-agreement send fails, continue — the main dispatch
-      // path may still work, OR the fallback (no attachments) path will fire.
-      console.error("[submit] ✗ early agreement send FAILED (will try again in main path):", String(earlyErr));
-    }
+    };
 
     // ── 2. Generate attachments PDF (uploaded docs) ──
     let coiScan: CoiScanResult | null = null;
@@ -1301,9 +1306,16 @@ export async function POST(req: NextRequest) {
           console.log("[submit] ✓ dispatch fallback (no attachments) sent, id:", fallbackResult.data?.id);
         } catch (fallbackErr) {
           console.error("[submit] ✗ dispatch fallback ALSO failed:", String(fallbackErr));
-          // Still don't throw — we want the carrier confirmation to send.
+          // Last resort: fire the safety-net so we at least preserve the signed agreement.
+          await sendAgreementSafetyNet(`Main + fallback dispatch both failed. Reason: ${String(fallbackErr).slice(0, 200)}`);
         }
       }
+    }
+
+    // If main dispatch didn't send for any reason, fire the safety-net.
+    // This is the catch-all guarantee that the signed agreement reaches us.
+    if (!dispatchSent && !safetyNetSent) {
+      await sendAgreementSafetyNet(dispatchError || "Main dispatch path did not complete");
     }
 
     // ── 4. Send confirmation to carrier ──
@@ -1327,13 +1339,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Summary log — easy to grep in Vercel logs
-    console.log("[submit] DONE — earlyAgreementSent:", earlyAgreementSent, "dispatchSent:", dispatchSent, "carrierSent:", carrierSent, "docsFailed:", docsFailed, "attachments:", attachments.length);
+    console.log("[submit] DONE — dispatchSent:", dispatchSent, "carrierSent:", carrierSent, "safetyNetSent:", safetyNetSent, "docsFailed:", docsFailed, "attachments:", attachments.length);
 
     return NextResponse.json({
       success: true,
-      earlyAgreementSent,
       dispatchSent,
       carrierSent,
+      safetyNetSent,
       docsFailed,
       // Surface errors so client can detect partial failures if it wants
       ...(dispatchError ? { dispatchError } : {}),
