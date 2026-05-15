@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { trackStep, clearSession } from "@/lib/kpiTracker";
 import ProgressBar from "@/components/ProgressBar";
 import Step1, { type CarrierData } from "@/components/Step1";
 import Step2 from "@/components/Step2";
@@ -19,7 +20,23 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const goTo = (n: number) => { setStep(n); window.scrollTo(0, 0); };
+  useEffect(() => {
+    trackStep({ step: 1 });
+  }, []);
+
+  const goTo = (n: number) => {
+    setStep(n);
+    window.scrollTo(0, 0);
+    // Fire-and-forget tracker ping. Step is 1-indexed in KPI (1..6).
+    trackStep({
+      step: n + 1,
+      // Flatten all known data into the ping so KPI can store partial state
+      ...(fmcsaData || {}),
+      ...(companyData || {}),
+      ...(docsData || {}),
+      ...(wcData || {}),
+    });
+  };
 
   const handleSubmit = async (sig: Record<string, unknown>) => {
     setSigData(sig);
@@ -42,9 +59,18 @@ export default function Home() {
       // Even on 200, the server may have failed to dispatch the internal email
       if (data && data.dispatchSent === false) {
         console.warn("[client] submit succeeded but dispatch email failed");
-        // We don't show this to the carrier — their submission IS recorded —
-        // but we log it so it shows up in browser dev tools / monitoring.
       }
+      // Mark KPI session as completed and clear so next visit is a new session
+      trackStep({
+        step: 6,
+        completed: true,
+        ...(fmcsaData || {}),
+        ...(companyData || {}),
+        ...(docsData || {}),
+        ...(wcData || {}),
+        ...(sig || {}),
+      });
+      clearSession();
     } catch (err) {
       console.error("[client] submit network error:", err);
       setSubmitError("We had trouble sending your confirmation email, but your application was received. Please contact dispatch@simonexpress.com.");
