@@ -567,30 +567,44 @@ ${(() => {
       })()}</div></div>
       ${dispatchEmail && !sameEmail ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Dispatch Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${dispatchEmail}${emailBadgeHtml(dispatchEmailValidation)}</div></div>` : ""}
       ${billingEmail && !billingSameAsPrimary && !billingSameAsDispatch ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Billing Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${billingEmail}${emailBadgeHtml(billingEmailValidation)}</div></div>` : ""}
-      ${agentEmail ? (() => {
+      ${(() => {
+        // Always render the COI Agent Email row + a resend button. The fix-coi
+        // page is editable, so ops can correct or fill in the agent email even
+        // when it was missing or wrong at signup time.
         const a = agentEmail.toLowerCase();
-        const sameAsCarrier = a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase();
+        const sameAsCarrier = !!agentEmail && (a === primaryEmail.toLowerCase() || a === dispatchEmail.toLowerCase() || a === billingEmail.toLowerCase());
         const v = agentEmailValidation;
-        // Show Fix & Resend button if email is invalid OR it's the same as the carrier's own (which the agent isn't)
-        const isProblematic = sameAsCarrier || (v && (v.disposable || !v.format || !v.hasMx || v.deliverability === "UNDELIVERABLE" || v.deliverability === "RISKY"));
-        const fixUrl = isProblematic ? (() => {
+        const isProblematic = sameAsCarrier || (!!agentEmail && v && (v.disposable || !v.format || !v.hasMx || v.deliverability === "UNDELIVERABLE" || v.deliverability === "RISKY"));
+
+        const resendUrl = (() => {
           const ctx = {
-            agentEmail,
+            agentEmail,                  // empty string when not provided — fix-coi accepts that and the input is editable
             companyName: name,
             carrierEmail: primaryEmail,
           };
-          // Base64 encode JSON for URL transport (no DB needed)
           const encoded = Buffer.from(JSON.stringify(ctx)).toString("base64");
           return `https://setup.simonexpress.com/fix-coi?d=${encodeURIComponent(encoded)}`;
-        })() : null;
-        const fixButton = fixUrl
-          ? ` <a href="${fixUrl}" target="_blank" style="display:inline-block;margin-left:8px;padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#CC1B1B;color:white;text-decoration:none">✉ Fix &amp; Resend</a>`
-          : "";
-        if (sameAsCarrier) {
-          return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER</span>${fixButton}</div></div>`;
+        })();
+
+        // Red "Fix" framing when the captured email looks bad; neutral
+        // "Resend" framing otherwise. When no email is provided at all, we
+        // frame it as "Send" (first send, not a re-send).
+        const buttonLabel = isProblematic
+          ? "✉ Fix &amp; Resend"
+          : !agentEmail
+          ? "✉ Send Insurance Request"
+          : "✉ Resend Insurance Request";
+        const buttonBg = isProblematic ? "#CC1B1B" : "#1a1a1a";
+        const resendButton = ` <a href="${resendUrl}" target="_blank" style="display:inline-block;margin-left:8px;padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${buttonBg};color:white;text-decoration:none">${buttonLabel}</a>`;
+
+        if (!agentEmail) {
+          return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><span style="color:#888">Not provided — use button to enter an address and send</span>${resendButton}</div></div>`;
         }
-        return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${agentEmail}${emailBadgeHtml(agentEmailValidation)}${fixButton}</div></div>`;
-      })() : ""}
+        if (sameAsCarrier) {
+          return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><span style="color:#888">${agentEmail}</span> <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ SAME AS CARRIER</span>${resendButton}</div></div>`;
+        }
+        return `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">COI Agent Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${agentEmail}${emailBadgeHtml(agentEmailValidation)}${resendButton}</div></div>`;
+      })()}
 
       <!-- Equipment -->
       <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Power Units (Trucks)</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(companyData?.truckCount as string) || "—"}${(fmcsaData?.truckCount && (fmcsaData.truckCount as string) !== (companyData?.truckCount as string)) ? ` <span style="color:#888;font-size:11px">(FMCSA: ${fmcsaData.truckCount as string})</span>` : ""}</div></div>
