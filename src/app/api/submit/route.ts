@@ -1189,7 +1189,7 @@ export async function POST(req: NextRequest) {
         try {
           const sw = await saferwatchLookup(swNumber);
           if (sw) {
-            htmlBody += renderSaferWatchSection(sw);
+            htmlBody += renderSaferWatchSection(sw, carrierEmail);
             const cert = sw.certificates.find((c) => c.certificateId);
             if (cert?.certificateId) {
               const certPdf = await fetchCertPdf(cert.certificateId);

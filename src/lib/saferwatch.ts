@@ -159,7 +159,17 @@ export async function fetchCertPdf(certificateId: string): Promise<Uint8Array | 
 }
 
 /** HTML block for the dispatch onboarding email — the SaferWatch extras. */
-export function renderSaferWatchSection(sw: SaferWatchSnapshot): string {
+export function renderSaferWatchSection(sw: SaferWatchSnapshot, registeredEmail?: string): string {
+  // ALERT: the email the carrier registered with doesn't match SaferWatch's email
+  // on file — a fraud/impostor red flag. Called out in bold at the top.
+  const norm = (e?: string | null) => String(e || "").trim().toLowerCase();
+  const emailMismatch = !!registeredEmail && !!sw.email && norm(registeredEmail) !== norm(sw.email);
+  const mismatchAlert = emailMismatch
+    ? `<div style="background:#fde8e8;border:2px solid #d71920;border-radius:8px;padding:12px;margin-bottom:12px;font-family:system-ui,sans-serif">
+  <strong style="color:#b00000;font-size:14px">⚠ EMAIL MISMATCH — registered email does NOT match SaferWatch</strong>
+  <div style="font-size:13px;color:#7a0000;margin-top:4px">Registered: <strong>${registeredEmail}</strong> &nbsp;·&nbsp; SaferWatch on file: <strong>${sw.email}</strong>.<br><strong>Verify this is the real carrier before proceeding.</strong></div>
+</div>`
+    : "";
   const row = (label: string, val: string | null) =>
     val ? `<tr><td style="padding:3px 12px 3px 0;color:#6B7280;font-size:12px;white-space:nowrap">${label}</td><td style="font-size:13px;color:#18181b">${val}</td></tr>` : "";
   const policies = sw.policies.length
@@ -172,7 +182,9 @@ export function renderSaferWatchSection(sw: SaferWatchSnapshot): string {
     : "";
   const cargo = sw.cargoTypes.length ? `<div style="margin-top:8px;font-size:13px;color:#18181b"><span style="color:#6B7280">Hauls:</span> ${sw.cargoTypes.join(", ")}</div>` : "";
   return `
-<div style="background:#f0f6ff;border:1px solid #bcd4f6;border-left:4px solid #2563EB;border-radius:8px;padding:14px;margin:16px 0;font-family:system-ui,sans-serif">
+<div style="margin:16px 0">
+  ${mismatchAlert}
+<div style="background:#f0f6ff;border:1px solid #bcd4f6;border-left:4px solid #2563EB;border-radius:8px;padding:14px;font-family:system-ui,sans-serif">
   <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#2563EB;margin-bottom:8px">🛡 SaferWatch — extra carrier intel</div>
   <table style="border-collapse:collapse">
     ${row("Risk", sw.riskOverall || sw.riskSafety)}
@@ -185,5 +197,6 @@ export function renderSaferWatchSection(sw: SaferWatchSnapshot): string {
     ${row("Org / D&B", [sw.organization, sw.dunBradstreet && `D&B ${sw.dunBradstreet}`].filter(Boolean).join(" · ") || null)}
   </table>
   ${policies}${agentHtml}${cargo}
+</div>
 </div>`;
 }
