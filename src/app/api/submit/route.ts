@@ -6,9 +6,14 @@ import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
 import { validateEmail } from "@/lib/validateEmail";
 import { scanCOI, type CoiScanResult } from "@/lib/scanCOI";
-import { getSessionFiles } from "@/app/api/upload/route";
+import { getSessionFiles, deleteSessionFiles } from "@/app/api/upload/route";
 
 export const runtime = "nodejs";
+// The submit flow generates a PDF, scans the COI, validates contacts against
+// external APIs, and sends e-mail(s). Without this it runs under Vercel's short
+// default cap and can be killed mid-flight (the carrier then sees a submit
+// error). Give it real headroom — the work is bounded well under this.
+export const maxDuration = 60;
 
 // Classify a US phone number into Mobile / Landline / VoIP / Toll-free.
 // Strategy: Try Numverify first (real telecom carrier data, 100 free/month),
@@ -19,7 +24,7 @@ async function detectPhoneType(phoneStr: string): Promise<{ type: string; color:
   if (digits.length < 10) return null;
 
   // ── Primary: Numverify (accurate real-time carrier lookup) ──
-  const numverifyKey = process.env.NUMVERIFY_API_KE;
+  const numverifyKey = process.env.NUMVERIFY_API_KEY;
   if (numverifyKey) {
     try {
       const numverifyUrl = `http://apilayer.net/api/validate?access_key=${numverifyKey}&number=${digits}&country_code=US&format=1`;
@@ -118,8 +123,13 @@ export async function buildDispatchEmail(data: {
   const primaryDigits = primaryPhone.replace(/[^0-9]/g, "");
   const dispatchDigits = dispatchPhone.replace(/[^0-9]/g, "");
   const sameAsPrimary = primaryDigits && primaryDigits === dispatchDigits;
-  const phoneTypeInfo = await detectPhoneType(primaryPhone);
-  const dispatchPhoneTypeInfo = sameAsPrimary ? phoneTypeInfo : (dispatchPhone ? await detectPhoneType(dispatchPhone) : null);
+  // Run both phone lookups in parallel (each is independently bounded) so two
+  // distinct numbers can't add their timeouts together on the critical path.
+  const [phoneTypeInfo, dispatchPhoneTypeInfoRaw] = await Promise.all([
+    detectPhoneType(primaryPhone),
+    sameAsPrimary || !dispatchPhone ? Promise.resolve(null) : detectPhoneType(dispatchPhone),
+  ]);
+  const dispatchPhoneTypeInfo = sameAsPrimary ? phoneTypeInfo : dispatchPhoneTypeInfoRaw;
 
   // Pre-compute email validation for all email fields (primary, dispatch, billing, agent)
   // Dedupe identical emails to a single validation call so we don't waste Abstract's free tier (100/mo)
@@ -949,7 +959,55 @@ const DOC_LABELS: Record<string, string> = {
 };
 
 // ─── Main handler ──────────────────────────────────────────────────────────
+/**
+ * Race a promise against a timeout. On timeout we REJECT so the caller can fall
+ * back — the underlying work is abandoned (not awaited). Used to guarantee the
+ * dispatch email gets built+sent even if an enrichment dependency hangs.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+  ]);
+}
+
+/**
+ * Synchronous, zero-network fallback dispatch email. Used only if the rich
+ * buildDispatchEmail (phone/email validation, COI scan badges) is too slow.
+ * It still carries everything dispatch needs to act, and the signed agreement
+ * PDF rides along as an attachment regardless.
+ */
+function buildLiteDispatchEmail(data: {
+  companyData: Record<string, unknown>;
+  fmcsaData: Record<string, unknown> | null;
+  ipAddress: string;
+  geoInfo: Record<string, string>;
+}): string {
+  const { companyData, fmcsaData, ipAddress, geoInfo } = data;
+  const esc = (s: unknown) => String(s ?? "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
+  const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
+  const mc = ((companyData?.mc as string) || (fmcsaData?.mc as string) || "").replace(/[^0-9]/g, "") || "—";
+  const dot = ((companyData?.dot as string) || (fmcsaData?.dot as string) || "").replace(/[^0-9]/g, "") || "—";
+  const row = (l: string, v: unknown) => `<tr><td style="padding:3px 14px 3px 0;color:#6B7280;font-size:13px">${l}</td><td style="font-size:13px;color:#111">${esc(v) || "—"}</td></tr>`;
+  return `<div style="font-family:system-ui,sans-serif;padding:20px;color:#0B0B0C;max-width:640px">
+  <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#856404">
+    Verification details (phone/email/COI checks) were skipped to ensure this submission delivered quickly. The signed agreement is attached. Verify the carrier manually as needed.
+  </div>
+  <h2 style="margin:0 0 10px;color:#D71920">${esc(name)}</h2>
+  <table style="border-collapse:collapse">
+    ${row("MC#", mc)}${row("DOT#", dot)}
+    ${row("Email", companyData?.email)}${row("Phone", companyData?.phone)}
+    ${row("Location", [companyData?.city, companyData?.state].filter(Boolean).join(", "))}
+    ${row("Submitted from", `${ipAddress}${geoInfo.city ? ` (${geoInfo.city}${geoInfo.region ? ", " + geoInfo.region : ""})` : ""} · ${geoInfo.deviceType || "?"}`)}
+  </table>
+</div>`;
+}
+
 export async function POST(req: NextRequest) {
+  // Captured as soon as we parse the body so the catch-all can still alert
+  // dispatch with the carrier's identity (req.json() is consumed, so the body
+  // can't be re-read inside catch).
+  let failContext = "an unknown carrier";
   try {
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) return NextResponse.json({ success: false, error: "Resend not configured" }, { status: 500 });
@@ -957,6 +1015,7 @@ export async function POST(req: NextRequest) {
     const resend = new Resend(resendKey);
     const body = await req.json();
     const { fmcsaData, companyData, docsData, wcData, sigData, sessionId } = body;
+    failContext = `${(companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier"} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || "?"} / DOT ${(companyData?.dot as string) || (fmcsaData?.dot as string) || "?"} <${(companyData?.email as string) || "no email"}>`;
 
     // Capture IP
     const ipAddress =
@@ -1115,7 +1174,7 @@ export async function POST(req: NextRequest) {
     let droppedFiles: Array<{ label: string; name: string; size: number }> = [];
 
     if (sessionId) {
-      const sessionFiles = getSessionFiles(sessionId);
+      const sessionFiles = await getSessionFiles(sessionId);
       if (sessionFiles && sessionFiles.size > 0) {
         console.log("[submit] processing", sessionFiles.size, "uploaded documents...");
 
@@ -1169,13 +1228,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Documents are now in memory (assembled into attachments + COI scanned),
+    // so purge the staged uploads — sensitive files (W-9, COI) shouldn't linger
+    // in storage. deleteSessionFiles never throws, so this can't sink the submit.
+    if (sessionId) {
+      await deleteSessionFiles(sessionId);
+    }
+
     // ── 3. Send to dispatch ──
     // CRITICAL: This email MUST go through. Multi-layer reliability:
     //  - If total payload > 35MB, pre-emptively split into TWO emails
     //    (notification with no attachments + docs-only follow-up)
     //  - If main send still fails, retry without attachments + warning banner
     //  - Carrier confirmation send is independent — its failure doesn't block dispatch
-    let htmlBody = await buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan });
+    // Build the rich dispatch email, but never let enrichment block delivery:
+    // if it can't finish within budget, fall back to the lite email so the
+    // signed agreement still goes out. (maxDuration gives plenty of room; this
+    // is belt-and-suspenders against a single hung dependency.)
+    let htmlBody: string;
+    try {
+      htmlBody = await withTimeout(
+        buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan }),
+        20000,
+        "buildDispatchEmail",
+      );
+    } catch (buildErr) {
+      console.error("[submit] dispatch email enrichment slow/failed, using lite email:", String(buildErr));
+      htmlBody = buildLiteDispatchEmail({ companyData, fmcsaData, ipAddress, geoInfo });
+    }
 
     // If docs PDF generation failed, inject a yellow warning at the top of
     // the dispatch email with the dropped-files list — so dispatch knows
@@ -1367,8 +1447,36 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const e = err as Error;
-    console.error("[submit] FATAL error:", e?.message || String(err));
+    const detail = e?.message || String(err);
+    console.error("[submit] FATAL error:", detail);
     console.error("[submit] stack:", e?.stack || "no stack");
-    return NextResponse.json({ success: false, error: e?.message || String(err) }, { status: 500 });
+
+    // Durable alert: a hard failure here means the carrier saw an error and
+    // their submission did NOT go through. Make sure a human finds out — fire a
+    // plain alert email to dispatch so it's never silent (best-effort).
+    try {
+      const resendKey = process.env.RESEND_API_KEY;
+      if (resendKey) {
+        await new Resend(resendKey).emails.send({
+          from: process.env.FROM_EMAIL || "onboarding@simonexpress.com",
+          to: ["setup@simonexpress.com"],
+          subject: `🚨 Carrier onboarding SUBMIT FAILED — ${failContext}`,
+          html: `<div style="font-family:system-ui,sans-serif;padding:20px;color:#111">
+  <h2 style="color:#CC1B1B;margin:0 0 8px">Onboarding submission failed</h2>
+  <p style="font-size:14px;line-height:1.5">A carrier completed the form but the final submit errored, so <strong>nothing was delivered through the normal flow</strong>. Reach out to them to re-submit or collect documents manually.</p>
+  <table style="border-collapse:collapse;font-size:13px;margin-top:8px">
+    <tr><td style="padding:3px 14px 3px 0;color:#6B7280">Carrier</td><td>${failContext.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</td></tr>
+    <tr><td style="padding:3px 14px 3px 0;color:#6B7280">Error</td><td style="font-family:ui-monospace,monospace;color:#CC1B1B">${String(detail).slice(0, 500).replace(/</g, "&lt;")}</td></tr>
+    <tr><td style="padding:3px 14px 3px 0;color:#6B7280">When</td><td>${new Date().toLocaleString("en-US", { timeZone: "America/Denver" })} MT</td></tr>
+  </table>
+</div>`,
+        });
+        console.log("[submit] failure alert email sent to setup@");
+      }
+    } catch (alertErr) {
+      console.error("[submit] failure alert email ALSO failed:", String(alertErr));
+    }
+
+    return NextResponse.json({ success: false, error: detail }, { status: 500 });
   }
 }
