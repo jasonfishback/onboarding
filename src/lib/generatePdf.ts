@@ -25,6 +25,16 @@ interface Fonts {
 function addPage(doc: PDFDocument, fonts: Fonts, pageNum: number, totalPages?: number, carrierInfo?: { name: string; mc: string; dot: string }): { page: PDFPage; y: number } {
   const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
 
+  // BULLETPROOF: route every drawText on this page through sanitize(). pdf-lib's
+  // standard font is WinAnsi-only and THROWS on any character it can't encode
+  // (curly quotes, em-dashes, accented/non-Latin letters, emoji). Most direct
+  // drawText calls render raw carrier-entered fields, so a single odd character
+  // in a name/address/signer field would crash the whole packet (→ submit 500,
+  // carrier blocked). Wrapping here covers every call site at once.
+  const rawDrawText = page.drawText.bind(page);
+  (page as { drawText: typeof page.drawText }).drawText = ((text: string, options?: Parameters<typeof page.drawText>[1]) =>
+    rawDrawText(typeof text === "string" ? sanitize(text) : text, options)) as typeof page.drawText;
+
   // Header bar
   page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 40, width: PAGE_WIDTH, height: 40, color: BLACK });
   page.drawText("SIMON EXPRESS LOGISTICS LLC", {
@@ -90,6 +100,7 @@ function sanitize(text: string): string {
     .replace(/\u2192/g, "->")                                   // right arrow
     .replace(/\u00B7/g, ".")                                    // middle dot (keep as period)
     .replace(/\t/g, "  ")                                      // tabs to spaces
+    .replace(/[-]/g, "")                            // strip C1 controls (undefined in WinAnsi)
     .replace(/[^\x00-\xFF]/g, "");                              // strip anything else outside latin-1
 }
 
