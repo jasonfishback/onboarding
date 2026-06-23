@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { put, list, del } from "@vercel/blob";
+import { put, list, del, get } from "@vercel/blob";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -55,11 +55,14 @@ export async function getSessionFiles(sessionId: string): Promise<Map<string, Se
           const slash = rest.indexOf("/");
           const fileKey = slash === -1 ? rest : rest.slice(0, slash);
           const name = slash === -1 ? "upload" : decodeURIComponent(rest.slice(slash + 1));
-          const res = await fetch(b.url);
-          const buffer = Buffer.from(await res.arrayBuffer());
+          // Private store: content isn't publicly fetchable — pull it through
+          // the SDK with the read-write token (from env).
+          const result = await get(b.pathname, { access: "private" });
+          if (!result || result.statusCode !== 200 || !result.stream) return;
+          const buffer = Buffer.from(await new Response(result.stream).arrayBuffer());
           map.set(fileKey, {
             name,
-            mimeType: res.headers.get("content-type") || "application/octet-stream",
+            mimeType: result.blob.contentType || "application/octet-stream",
             buffer,
             label: fileKey,
           });
@@ -116,7 +119,7 @@ export async function POST(req: NextRequest) {
       // guessable, and submit deletes everything once it's processed.
       const pathname = `${prefixFor(sessionId)}${fileKey}/${encodeURIComponent(file.name || fileKey)}`;
       await put(pathname, buffer, {
-        access: "public",
+        access: "private",
         contentType: file.type || "application/octet-stream",
         addRandomSuffix: false,
         allowOverwrite: true,
