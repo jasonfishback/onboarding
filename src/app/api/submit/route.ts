@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { generateOnboardingPDF } from "@/lib/generatePdf";
+import { saferwatchLookup, fetchCertPdf, renderSaferWatchSection } from "@/lib/saferwatch";
 import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
 import { validateEmail } from "@/lib/validateEmail";
@@ -1255,6 +1256,33 @@ export async function POST(req: NextRequest) {
     } catch (buildErr) {
       console.error("[submit] dispatch email enrichment slow/failed, using lite email:", String(buildErr));
       htmlBody = buildLiteDispatchEmail({ companyData, fmcsaData, ipAddress, geoInfo });
+    }
+
+    // ── SaferWatch enrichment: append the extra carrier intel FMCSA doesn't give
+    //    (risk, insurance + AM Best + agent, email/contacts, trailer/cargo) and
+    //    attach the SaferWatch COI certificate as a PDF. Best-effort — never block. ──
+    {
+      const swDot = String((companyData?.dot as string) ?? (fmcsaData?.dot as string) ?? "").replace(/[^0-9]/g, "");
+      const swMc = String((companyData?.mc as string) ?? (fmcsaData?.mc as string) ?? "").replace(/[^0-9]/g, "");
+      const swNumber = swDot || (swMc ? `MC${swMc}` : ""); // no prefix ⇒ DOT, so MC needs the prefix
+      if (swNumber) {
+        try {
+          const sw = await saferwatchLookup(swNumber);
+          if (sw) {
+            htmlBody += renderSaferWatchSection(sw, carrierEmail);
+            const cert = sw.certificates.find((c) => c.certificateId);
+            if (cert?.certificateId) {
+              const certPdf = await fetchCertPdf(cert.certificateId);
+              if (certPdf) {
+                attachments.push({ filename: `SaferWatch_COI_${safeName}.pdf`, content: Buffer.from(certPdf).toString("base64") });
+                console.log("[submit] ✓ attached SaferWatch COI PDF");
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[submit] saferwatch enrich failed:", String(e));
+        }
+      }
     }
 
     // If docs PDF generation failed, inject a yellow warning at the top of
