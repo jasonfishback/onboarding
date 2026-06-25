@@ -5,6 +5,7 @@ import { generateOnboardingPDF } from "@/lib/generatePdf";
 import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
 import { validateEmail } from "@/lib/validateEmail";
+import { isFullName } from "@/lib/validateName";
 import { scanCOI, type CoiScanResult } from "@/lib/scanCOI";
 import { getSessionFiles, deleteSessionFiles } from "@/app/api/upload/route";
 
@@ -880,7 +881,7 @@ ${(() => {
 <div class="sec">
   <div class="sec-hdr">📋 Document Status</div>
   <table class="doc-list">
-    ${checkRow(agreementSigned, "Carrier Agreement Signed", agreementSigned ? `Signed by ${sig.signerName as string}${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""}` : "Not signed")}
+    ${checkRow(agreementSigned, "Carrier Agreement Signed", agreementSigned ? `Signed by ${sig.signerName as string}${sig.signerTitle ? `, ${sig.signerTitle as string}` : ""}${sig.authorizedSigner ? " · certified authorized signer" : ""}` : "Not signed")}
     ${checkRow(wcOk, wcLabel, !wcOk ? "Workers comp documentation missing" : undefined)}
     ${checkRow(w9Ok, w9Label, !w9Ok ? "W-9 not provided" : undefined)}
     ${checkRow(coiUploaded ? true : coiAgentNotified ? "warn" : false, coiLabel, coiDetail ?? (!coiUploaded && !coiAgentNotified ? "Certificate of insurance not received" : undefined))}
@@ -1016,6 +1017,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { fmcsaData, companyData, docsData, wcData, sigData, sessionId } = body;
     failContext = `${(companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier"} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || "?"} / DOT ${(companyData?.dot as string) || (fmcsaData?.dot as string) || "?"} <${(companyData?.email as string) || "no email"}>`;
+
+    // Enforce signer attestations server-side (the client also gates these, but
+    // never trust the client for a legally-binding signature). The signer must
+    // give a full first AND last name and certify they're an authorized signer.
+    const sigCheck = (sigData || {}) as Record<string, unknown>;
+    if (!isFullName(sigCheck.signerName as string)) {
+      return NextResponse.json({ success: false, error: "Signer must provide a full first and last name." }, { status: 400 });
+    }
+    if (sigCheck.authorizedSigner !== true) {
+      return NextResponse.json({ success: false, error: "Signer must certify they are an authorized signer for the carrier." }, { status: 400 });
+    }
 
     // Capture IP
     const ipAddress =

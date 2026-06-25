@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Box, Btn, RED, DARK } from "@/components/ui";
+import { isFullName } from "@/lib/validateName";
 
 interface Step5Props {
   onNext: (data: Record<string, unknown>) => void;
@@ -13,6 +14,7 @@ interface Step5Props {
 export default function Step5({ onNext, onBack, companyName, companyData }: Step5Props) {
   const [scrolled, setScrolled] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [authorizedSigner, setAuthorizedSigner] = useState(false);
   const [sigMode, setSigMode] = useState<"type" | "draw">("type");
   const [typeSig, setTypeSig] = useState("");
   const [signerTitle, setSignerTitle] = useState("");
@@ -59,7 +61,8 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
     canvasRef.current.getContext("2d")!.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
   };
 
-  const canSign = agreed && typeSig.length > 2;
+  const nameOk = isFullName(typeSig);
+  const canSign = agreed && authorizedSigner && nameOk;
   const today = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" });
 
   return (
@@ -169,9 +172,22 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
                 <strong>{companyName || "the carrier"}</strong>.
               </div>
             </label>
+
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", marginTop: 16, paddingTop: 16, borderTop: "1px solid #eee" }}>
+              <input
+                type="checkbox"
+                checked={authorizedSigner}
+                onChange={(e) => setAuthorizedSigner(e.target.checked)}
+                style={{ width: 20, height: 20, marginTop: 2, accentColor: RED, flexShrink: 0 }}
+              />
+              <div style={{ fontSize: 14, color: "#444", lineHeight: 1.6 }}>
+                I certify that I am an <strong>authorized signer</strong> for{" "}
+                <strong>{companyName || "the carrier"}</strong> with full legal authority to sign and bind the company to this Broker-Carrier Agreement.
+              </div>
+            </label>
           </Box>
 
-          {agreed && (
+          {agreed && authorizedSigner && (
             <Box style={{ padding: 24, marginBottom: 24 }}>
               <div style={{ fontFamily: "DM Sans", fontSize: 20, fontWeight: 700, marginBottom: 14 }}>
                 Electronic Signature
@@ -208,9 +224,14 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
                 <input
                   value={typeSig}
                   onChange={(e) => setTypeSig(e.target.value)}
-                  placeholder="Type your full legal name..."
-                  style={{ width: "100%", padding: "12px", border: "2px solid " + DARK, fontFamily: "DM Sans", fontSize: 18, background: "#fafaf8", borderRadius: 2, outline: "none" }}
+                  placeholder="First and last name (e.g. Roy Smith)"
+                  style={{ width: "100%", padding: "12px", border: "2px solid " + (typeSig && !nameOk ? RED : DARK), fontFamily: "DM Sans", fontSize: 18, background: "#fafaf8", borderRadius: 2, outline: "none" }}
                 />
+                {typeSig && !nameOk && (
+                  <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 4 }}>
+                    Please enter your full first and last name.
+                  </div>
+                )}
                 {sigMode === "type" && typeSig && (
                   <div style={{ padding: "10px 0 4px", fontFamily: "DM Sans", fontSize: 32, borderBottom: "2px solid " + DARK, color: "#222", marginTop: 8 }}>
                     {typeSig}
@@ -272,7 +293,9 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
             ? "Scroll through the full agreement to continue"
             : !agreed
               ? "Check the box to agree to the terms above"
-              : "Enter your name in the signature field above (min. 3 characters)"}
+              : !authorizedSigner
+                ? "Confirm you are an authorized signer for the company"
+                : "Enter your full first and last name in the signature field above"}
         </div>
       )}
 
@@ -292,7 +315,7 @@ export default function Step5({ onNext, onBack, companyName, companyData }: Step
                 if (hasContent) signatureImage = canvasRef.current.toDataURL("image/png");
               }
             }
-            onNext({ agreed, signerName: typeSig, signerTitle, sigDate: today, signatureImage });
+            onNext({ agreed, authorizedSigner, signerName: typeSig.trim(), signerTitle, sigDate: today, signatureImage });
           }}
         >
           Submit Application →

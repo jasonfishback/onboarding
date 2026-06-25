@@ -617,7 +617,19 @@ async function buildAgreementPages(
   if (sig.signerTitle) {
     page.drawText(`Title: ${String(sig.signerTitle)}`, { x: rightX, y, size: 8.5, font: fonts.regular, color: BLACK });
   }
-  y -= 20;
+  y -= 18;
+
+  // Authorized-signer attestation — records that the CARRIER's signer certified
+  // they had authority to bind the company, so the contract Simon Express
+  // receives shows the authority was affirmed at signing.
+  {
+    const attest = `The CARRIER's signer above represents and warrants that he or she is an authorized signer for ${sanitize(carrierName)} with full authority to execute this Agreement on the CARRIER's behalf.`;
+    for (const line of wrapText(attest, fonts.regular, 7.5, CONTENT_WIDTH)) {
+      page.drawText(line, { x: MARGIN, y, size: 7.5, font: fonts.regular, color: BLACK });
+      y -= 10;
+    }
+    y -= 6;
+  }
 
   // Legal notice
   if (data.ipAddress) {

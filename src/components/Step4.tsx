@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Box, Btn, RED, DARK } from "@/components/ui";
+import { isFullName } from "@/lib/validateName";
 
 interface Step4Props {
   onNext: (data: Record<string, unknown>) => void;
@@ -54,7 +55,10 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
   };
 
-  const canContinue = hasWC ? !!wcUpload : exemptSigned && !!typeSig;
+  // The exemption is a legal signature — require a full first and last name (no
+  // single names like "Roy"), same rule as the carrier agreement signature.
+  const nameOk = isFullName(typeSig);
+  const canContinue = hasWC ? !!wcUpload : exemptSigned && nameOk;
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 20px", boxSizing: "border-box" as const, width: "100%" }}>
@@ -202,9 +206,14 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
               <input
                 value={typeSig}
                 onChange={(e) => setTypeSig(e.target.value)}
-                placeholder="Type your full legal name..."
-                style={{ width: "100%", padding: "12px", border: "2px solid " + DARK, fontFamily: "DM Sans", fontSize: 18, background: "#fafaf8", borderRadius: 2, outline: "none" }}
+                placeholder="First and last name (e.g. Roy Smith)"
+                style={{ width: "100%", padding: "12px", border: "2px solid " + (typeSig && !nameOk ? RED : DARK), fontFamily: "DM Sans", fontSize: 18, background: "#fafaf8", borderRadius: 2, outline: "none" }}
               />
+              {typeSig && !nameOk && (
+                <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 4 }}>
+                  Please enter your full first and last name.
+                </div>
+              )}
               {typeSig && (
                 <div style={{ padding: "10px 0 4px", fontFamily: "DM Sans", fontSize: 32, borderBottom: "2px solid " + DARK, color: "#222", marginTop: 8 }}>
                   {typeSig}
@@ -220,9 +229,14 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
                 <input
                   value={typeSig}
                   onChange={(e) => setTypeSig(e.target.value)}
-                  placeholder="Type full legal name..."
-                  style={{ width: "100%", padding: "9px 12px", border: "2px solid " + DARK, borderRadius: 2, fontFamily: "DM Sans", fontSize: 14, background: "#fafaf8", outline: "none" }}
+                  placeholder="First and last name (e.g. Roy Smith)"
+                  style={{ width: "100%", padding: "9px 12px", border: "2px solid " + (typeSig && !nameOk ? RED : DARK), borderRadius: 2, fontFamily: "DM Sans", fontSize: 14, background: "#fafaf8", outline: "none" }}
                 />
+                {typeSig && !nameOk && (
+                  <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 4 }}>
+                    Please enter your full first and last name.
+                  </div>
+                )}
               </div>
               <canvas
                 ref={canvasRef}
@@ -267,9 +281,11 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
         <div style={{ color: "#CC1B1B", fontSize: 13, fontWeight: 600, textAlign: "center", marginBottom: 6 }}>
           {hasWC
             ? "Required to continue: upload your Workers Compensation certificate"
-            : !exemptSigned
-              ? "Required to continue: check the exemption declaration box"
-              : "Required to continue: sign the exemption form above"}
+            : !typeSig || !nameOk
+              ? "Required to continue: sign with your full first and last name"
+              : !exemptSigned
+                ? "Required to continue: check the exemption declaration box"
+                : "Required to continue: sign the exemption form above"}
         </div>
       )}
 
@@ -287,7 +303,7 @@ export default function Step4({ onNext, onBack, carrier }: Step4Props) {
                 if (hasContent) signatureImage = canvasRef.current.toDataURL("image/png");
               }
             }
-            onNext({ hasWC, wcUpload: wcUpload?.name, exemptSigned, signerName: typeSig, signatureImage });
+            onNext({ hasWC, wcUpload: wcUpload?.name, exemptSigned, signerName: typeSig.trim(), signatureImage });
           }}
         >
           Continue →
