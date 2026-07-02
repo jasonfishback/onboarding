@@ -28,7 +28,9 @@ async function detectPhoneType(phoneStr: string): Promise<{ type: string; color:
   const numverifyKey = process.env.NUMVERIFY_API_KEY;
   if (numverifyKey) {
     try {
-      const numverifyUrl = `http://apilayer.net/api/validate?access_key=${numverifyKey}&number=${digits}&country_code=US&format=1`;
+      // https — plaintext http transmitted the API key and carriers' phone
+      // numbers in the clear (apilayer serves this endpoint over TLS).
+      const numverifyUrl = `https://apilayer.net/api/validate?access_key=${numverifyKey}&number=${digits}&country_code=US&format=1`;
       const res = await fetch(numverifyUrl, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json() as {
