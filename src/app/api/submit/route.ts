@@ -89,6 +89,79 @@ async function detectPhoneType(phoneStr: string): Promise<{ type: string; color:
   }
 }
 
+// ─── Signup risk check (KPI server-to-server) ──────────────────────────────
+// POSTs the carrier's IP + contact fingerprints to KPI's /api/setup/ip-check.
+// KPI answers with (a) blocked: the IP is on the scammer blocklist, and
+// (b) reuse: prior signups by a DIFFERENT carrier sharing this IP / phone /
+// email / street address. Fully non-blocking — any failure returns null and
+// the signup proceeds as normal (KPI also fires the on-call SMS on blocked).
+
+type ReuseMatch = {
+  field: "ip" | "phone" | "email" | "address";
+  value: string;
+  matches: { legal_name: string | null; mc: string | null; dot: string | null; started_at: string; completed: boolean }[];
+};
+type RiskCheck = { blocked: boolean; label?: string | null; reuse?: ReuseMatch[] };
+
+async function checkSignupRisk(payload: {
+  ip: string;
+  name: string;
+  mc: string;
+  dot: string;
+  session_id: string | null;
+  phones: string[];
+  emails: string[];
+  address: string | null;
+  zip: string | null;
+}): Promise<RiskCheck | null> {
+  const base = process.env.KPI_BASE_URL || "https://kpi.simonexpress.com";
+  const secret = process.env.SETUP_IP_CHECK_SECRET || "";
+  if (!payload.ip || payload.ip === "Unknown") return null;
+  try {
+    const res = await fetch(`${base}/api/setup/ip-check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Setup-Secret": secret },
+      body: JSON.stringify({ ...payload, event: "submit" }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as RiskCheck;
+  } catch (err) {
+    console.log("[submit] signup risk check failed (non-critical):", String(err));
+    return null;
+  }
+}
+
+// Warning banner prepended to the dispatch email when the risk check hits.
+function buildRiskBannerHtml(risk: RiskCheck, ipIsMobileCarrier: boolean): string {
+  const parts: string[] = [];
+  if (risk.blocked) {
+    parts.push(`<div style="background:#CC1B1B;border-radius:8px;padding:16px;margin:0 0 16px;font-family:system-ui,sans-serif;text-align:center;">
+  <div style="font-size:16px;font-weight:900;color:#ffffff;letter-spacing:.5px;">🚨 SCAMMER IDENTIFIED BY IP ADDRESS — DO NOT USE</div>
+  <div style="font-size:13px;color:#ffe0e0;margin-top:6px;">This signup came from an IP on the scammer blocklist${risk.label ? ` (flag: <strong style="color:#fff">${risk.label}</strong>)` : ""}. Do not tender freight to this carrier.</div>
+</div>`);
+  }
+  const reuse = risk.reuse || [];
+  if (reuse.length > 0) {
+    const fieldLabel: Record<string, string> = { ip: "IP address", phone: "Phone", email: "Email", address: "Address" };
+    const lines = reuse.map((m) => {
+      const who = m.matches
+        .map((c) => `<strong>${c.legal_name || "Unknown carrier"}</strong>${c.mc ? ` (MC ${String(c.mc).replace(/\D/g, "")})` : ""} — ${c.completed ? "signed" : "abandoned"} ${new Date(c.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}`)
+        .join("; ");
+      const mobileNote = m.field === "ip" && ipIsMobileCarrier
+        ? ` <span style="color:#92400e;font-weight:400">(mobile-carrier IP — can be shared by unrelated users)</span>`
+        : "";
+      return `<li style="margin:4px 0;"><strong>${fieldLabel[m.field] || m.field} ${m.value}</strong> was also used by: ${who}${mobileNote}</li>`;
+    }).join("");
+    parts.push(`<div style="background:#fff5f5;border:1px solid #CC1B1B;border-left:4px solid #CC1B1B;border-radius:8px;padding:14px;margin:0 0 16px;font-family:system-ui,sans-serif;">
+  <strong style="color:#991b1b;font-size:14px;">⚠ REUSED SIGNUP INFO — matches a previous signup by a different carrier</strong>
+  <ul style="font-size:13px;color:#7f1d1d;margin:8px 0 4px 20px;line-height:1.5;">${lines}</ul>
+  <div style="font-size:11px;color:#991b1b;margin-top:6px;">Verify identity before onboarding — reused phones/emails/IPs across different MC numbers are a common double-brokering / identity-theft pattern.</div>
+</div>`);
+  }
+  return parts.join("");
+}
+
 // ─── Email HTML builders ───────────────────────────────────────────────────
 export async function buildDispatchEmail(data: {
   companyData: Record<string, unknown>;
@@ -1084,6 +1157,27 @@ export async function POST(req: NextRequest) {
 
     const companyName = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
     const carrierEmail = (companyData?.email as string) || "";
+
+    // ── Signup risk check (scammer-IP blocklist + reused contact info) ──
+    // Asks KPI whether this IP is blocklisted and whether the IP / phone /
+    // email / address matches a PREVIOUS signup by a different carrier.
+    // Drives the subject markers + red banners below. Non-blocking.
+    const dispatchInfo = (companyData?.dispatch as Record<string, string>) || {};
+    const billingInfo = (companyData?.billing as Record<string, string>) || {};
+    const riskCheck = await checkSignupRisk({
+      ip: ipAddress,
+      name: companyName,
+      mc: (companyData?.mc as string) || (fmcsaData?.mc as string) || "",
+      dot: (companyData?.dot as string) || (fmcsaData?.dot as string) || "",
+      session_id: (sessionId as string) || null,
+      phones: [(companyData?.phone as string) || "", dispatchInfo.phone || ""].filter(Boolean),
+      emails: [carrierEmail, dispatchInfo.email || "", billingInfo.email || ""].filter(Boolean),
+      address: (companyData?.address as string) || null,
+      zip: (companyData?.zip as string) || null,
+    });
+    const hasReuse = !!riskCheck?.reuse?.length;
+    if (riskCheck?.blocked) console.warn("[submit] ⚠ blocked scammer IP submitted:", ipAddress);
+    if (hasReuse) console.warn("[submit] ⚠ reused signup info:", JSON.stringify(riskCheck?.reuse));
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
     const FROM = process.env.FROM_EMAIL || "onboarding@simonexpress.com";
     const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 35);
@@ -1112,7 +1206,12 @@ export async function POST(req: NextRequest) {
     // sends it on demand. We use a single flag to make sure it never fires
     // more than once — we want at most ONE email per submit unless we have
     // a genuine reason to split.
-    const dispatchSubject = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
+    const dispatchSubjectBase = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
+    const dispatchSubject = riskCheck?.blocked
+      ? `****SCAMMER IDENTIFIED BY IP ADDRESS - DO NOT USE***** ${dispatchSubjectBase}`
+      : hasReuse
+        ? `⚠️ REUSED SIGNUP INFO — ${dispatchSubjectBase}`
+        : dispatchSubjectBase;
     let safetyNetSent = false;
     const sendAgreementSafetyNet = async (reason: string): Promise<boolean> => {
       if (safetyNetSent) return true;
@@ -1292,6 +1391,12 @@ export async function POST(req: NextRequest) {
   </div>
 </div>`;
       htmlBody = warningBanner + htmlBody;
+    }
+
+    // Scammer / reused-info warnings go at the VERY top of the email, above
+    // everything else (including the docs-failure banner).
+    if (riskCheck && (riskCheck.blocked || hasReuse)) {
+      htmlBody = buildRiskBannerHtml(riskCheck, geoInfo.mobile === "Yes") + htmlBody;
     }
 
     // Resend has a ~40MB email size limit (after base64 encoding adds ~33% overhead).
