@@ -132,6 +132,42 @@ async function checkSignupRisk(payload: {
   }
 }
 
+// ── Equipment vetting (FMCSA inspection history via KPI) ───────────────────
+// Asks KPI what trailer types this carrier is ACTUALLY inspected with (from
+// the FMCSA Vehicle Inspection File mirror) versus what they claimed on the
+// setup form. KPI returns mismatch flags (e.g. claims reefer, only dump
+// trailers ever inspected) and a ready-to-embed HTML block for this email.
+// Fully non-blocking — failure just means the email goes out without it.
+
+type EquipmentCheck = {
+  hasDanger: boolean;
+  emailHtml: string;
+  flags: { level: "danger" | "caution" | "info"; text: string }[];
+};
+
+async function checkEquipmentProfile(payload: {
+  dot: string;
+  mc: string;
+  claimedTrailerTypes: string[];
+}): Promise<EquipmentCheck | null> {
+  const base = process.env.KPI_BASE_URL || "https://kpi.simonexpress.com";
+  const secret = process.env.SETUP_IP_CHECK_SECRET || "";
+  if (!payload.dot && !payload.mc) return null;
+  try {
+    const res = await fetch(`${base}/api/setup/equipment-check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Setup-Secret": secret },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as EquipmentCheck;
+  } catch (err) {
+    console.log("[submit] equipment check failed (non-critical):", String(err));
+    return null;
+  }
+}
+
 // Warning banner prepended to the dispatch email when the risk check hits.
 function buildRiskBannerHtml(risk: RiskCheck, ipIsMobileCarrier: boolean): string {
   const parts: string[] = [];
@@ -1164,18 +1200,30 @@ export async function POST(req: NextRequest) {
     // Drives the subject markers + red banners below. Non-blocking.
     const dispatchInfo = (companyData?.dispatch as Record<string, string>) || {};
     const billingInfo = (companyData?.billing as Record<string, string>) || {};
-    const riskCheck = await checkSignupRisk({
-      ip: ipAddress,
-      name: companyName,
-      mc: (companyData?.mc as string) || (fmcsaData?.mc as string) || "",
-      dot: (companyData?.dot as string) || (fmcsaData?.dot as string) || "",
-      session_id: (sessionId as string) || null,
-      phones: [(companyData?.phone as string) || "", dispatchInfo.phone || ""].filter(Boolean),
-      emails: [carrierEmail, dispatchInfo.email || "", billingInfo.email || ""].filter(Boolean),
-      address: (companyData?.address as string) || null,
-      zip: (companyData?.zip as string) || null,
-    });
+    const claimedTrailerTypes = (() => {
+      const tt = (companyData?.trailerTypes as Record<string, boolean>) || {};
+      return [tt.reefer && "Reefer", tt.van && "Dry Van", tt.flatbed && "Flatbed"].filter(Boolean) as string[];
+    })();
+    const [riskCheck, equipCheck] = await Promise.all([
+      checkSignupRisk({
+        ip: ipAddress,
+        name: companyName,
+        mc: (companyData?.mc as string) || (fmcsaData?.mc as string) || "",
+        dot: (companyData?.dot as string) || (fmcsaData?.dot as string) || "",
+        session_id: (sessionId as string) || null,
+        phones: [(companyData?.phone as string) || "", dispatchInfo.phone || ""].filter(Boolean),
+        emails: [carrierEmail, dispatchInfo.email || "", billingInfo.email || ""].filter(Boolean),
+        address: (companyData?.address as string) || null,
+        zip: (companyData?.zip as string) || null,
+      }),
+      checkEquipmentProfile({
+        dot: (companyData?.dot as string) || (fmcsaData?.dot as string) || "",
+        mc: (companyData?.mc as string) || (fmcsaData?.mc as string) || "",
+        claimedTrailerTypes,
+      }),
+    ]);
     const hasReuse = !!riskCheck?.reuse?.length;
+    if (equipCheck?.hasDanger) console.warn("[submit] ⚠ equipment mismatch:", JSON.stringify(equipCheck.flags));
     if (riskCheck?.blocked) console.warn("[submit] ⚠ blocked scammer IP submitted:", ipAddress);
     if (hasReuse) console.warn("[submit] ⚠ reused signup info:", JSON.stringify(riskCheck?.reuse));
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
@@ -1211,7 +1259,9 @@ export async function POST(req: NextRequest) {
       ? `****SCAMMER IDENTIFIED BY IP ADDRESS - DO NOT USE***** ${dispatchSubjectBase}`
       : hasReuse
         ? `⚠️ REUSED SIGNUP INFO — ${dispatchSubjectBase}`
-        : dispatchSubjectBase;
+        : equipCheck?.hasDanger
+          ? `🚫 EQUIPMENT MISMATCH — ${dispatchSubjectBase}`
+          : dispatchSubjectBase;
     let safetyNetSent = false;
     const sendAgreementSafetyNet = async (reason: string): Promise<boolean> => {
       if (safetyNetSent) return true;
@@ -1393,8 +1443,14 @@ export async function POST(req: NextRequest) {
       htmlBody = warningBanner + htmlBody;
     }
 
+    // FMCSA inspection vetting block (equipment profile + mismatch flags,
+    // rendered by KPI) goes above the packet details.
+    if (equipCheck?.emailHtml) {
+      htmlBody = equipCheck.emailHtml + htmlBody;
+    }
+
     // Scammer / reused-info warnings go at the VERY top of the email, above
-    // everything else (including the docs-failure banner).
+    // everything else (including the docs-failure banner and equipment block).
     if (riskCheck && (riskCheck.blocked || hasReuse)) {
       htmlBody = buildRiskBannerHtml(riskCheck, geoInfo.mobile === "Yes") + htmlBody;
     }
