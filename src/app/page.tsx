@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { trackStep, clearSession } from "@/lib/kpiTracker";
+import { trackStep, clearSession, getSessionId } from "@/lib/kpiTracker";
 import ProgressBar from "@/components/ProgressBar";
 import Step1, { type CarrierData } from "@/components/Step1";
 import Step2 from "@/components/Step2";
@@ -46,7 +46,7 @@ export default function Home() {
       const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fmcsaData, companyData, docsData, wcData, sigData: sig, sessionId: (docsData as Record<string,unknown>)?.sessionId }),
+        body: JSON.stringify({ fmcsaData, companyData, docsData, wcData, sigData: sig, sessionId: (docsData as Record<string,unknown>)?.sessionId, kpiSessionId: getSessionId() }),
       });
       // fetch() resolves on 4xx/5xx — must check res.ok explicitly.
       if (!res.ok) {

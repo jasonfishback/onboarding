@@ -11,7 +11,7 @@ const KPI_URL = process.env.NEXT_PUBLIC_KPI_TRACKER_URL
   || 'https://kpi.simonexpress.com/api/setup/signup';
 const STORAGE_KEY = 'simon_setup_session_id';
 
-function getSessionId(): string {
+export function getSessionId(): string {
   if (typeof window === 'undefined') return '';
   try {
     let id = localStorage.getItem(STORAGE_KEY);
