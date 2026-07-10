@@ -168,6 +168,37 @@ async function checkEquipmentProfile(payload: {
   }
 }
 
+// ── Signup completion ping (KPI server-to-server) ──────────────────────────
+// The browser fires its own trackStep({completed:true}) ping, but client-side
+// fetches to kpi.simonexpress.com can silently die (content blockers, flaky
+// mobile networks — E&S EXPRESS 7/9/26 delivered only its step-1 ping, so the
+// completed signup never showed in the carrier-signups list). This server-side
+// upsert guarantees every accepted submit lands in kpi's carrier_signups with
+// full identity, no matter what happens on the phone. Idempotent with the
+// client ping (same session_id upserts the same row). Fully non-blocking.
+async function recordSignupCompletion(kpiSessionId: string | null, flat: Record<string, unknown>): Promise<void> {
+  const base = process.env.KPI_BASE_URL || "https://kpi.simonexpress.com";
+  // signatureImage is a large base64 blob — kpi only needs the identity fields
+  const { signatureImage: _sig, ...fields } = flat;
+  try {
+    const res = await fetch(`${base}/api/setup/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: kpiSessionId || crypto.randomUUID(),
+        step: 6,
+        completed: true,
+        server_ping: true,
+        ...fields,
+      }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) console.warn("[submit] kpi completion ping returned", res.status);
+  } catch (err) {
+    console.log("[submit] kpi completion ping failed (non-critical):", String(err));
+  }
+}
+
 // Warning banner prepended to the dispatch email when the risk check hits.
 function buildRiskBannerHtml(risk: RiskCheck, ipIsMobileCarrier: boolean): string {
   const parts: string[] = [];
@@ -1126,7 +1157,7 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(resendKey);
     const body = await req.json();
-    const { fmcsaData, companyData, docsData, wcData, sigData, sessionId } = body;
+    const { fmcsaData, companyData, docsData, wcData, sigData, sessionId, kpiSessionId } = body;
     failContext = `${(companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier"} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || "?"} / DOT ${(companyData?.dot as string) || (fmcsaData?.dot as string) || "?"} <${(companyData?.email as string) || "no email"}>`;
 
     // Enforce signer attestations server-side (the client also gates these, but
@@ -1606,6 +1637,17 @@ export async function POST(req: NextRequest) {
         console.error("[submit] ✗ carrier confirmation FAILED:", String(carrierErr));
       }
     }
+
+    // ── 5. Record completion in kpi's carrier_signups (server-to-server) ──
+    // Guarantees the signup shows on /dashboard/carrier-signups even when the
+    // browser's own tracker pings never make it out of the carrier's device.
+    await recordSignupCompletion((kpiSessionId as string) || null, {
+      ...(fmcsaData || {}),
+      ...(companyData || {}),
+      ...(docsData || {}),
+      ...(wcData || {}),
+      ...(sigData || {}),
+    });
 
     // Summary log — easy to grep in Vercel logs
     console.log("[submit] DONE — dispatchSent:", dispatchSent, "carrierSent:", carrierSent, "safetyNetSent:", safetyNetSent, "docsFailed:", docsFailed, "attachments:", attachments.length);
