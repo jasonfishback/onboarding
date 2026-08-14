@@ -101,7 +101,39 @@ type ReuseMatch = {
   value: string;
   matches: { legal_name: string | null; mc: string | null; dot: string | null; started_at: string; completed: boolean }[];
 };
-type RiskCheck = { blocked: boolean; label?: string | null; reuse?: ReuseMatch[] };
+
+// VIN-overlap risk verdict (kpi carrier_vin_risk, migration 00313), returned in
+// the ip-check response. A new/small carrier that runs the same TRACTORS as
+// already-blocked carriers is almost certainly the same operation under a fresh
+// authority (chameleon / double-broker). The kpi side fires the SMS; here we
+// just render the email banner + subject marker.
+type VinRiskMatch = {
+  dot: number; name: string; state: string; units: number;
+  shared_vins: number; last_shared: string | null; flagged: boolean;
+  pattern?: "rotating" | "transfer";
+};
+type VinRisk = {
+  dot: number; score: number; band: string; hard_stop: boolean;
+  signals: {
+    blocked_small_links: number; borrowed_ratio: number;
+    ring_small_unflagged_links: number; rotating_links: number;
+  };
+  matches: VinRiskMatch[];
+};
+
+function vinRiskIsAlarming(r: VinRisk | null | undefined): boolean {
+  return !!r && (r.hard_stop || r.band === "critical" || r.band === "high");
+}
+function vinRiskSummary(r: VinRisk): string {
+  const s = r.signals;
+  const bits: string[] = [];
+  if (s.blocked_small_links > 0) bits.push(`shares tractors with ${s.blocked_small_links} blocked carrier${s.blocked_small_links === 1 ? "" : "s"}`);
+  if (s.rotating_links > 0) bits.push(`${s.rotating_links} tractor rotation${s.rotating_links === 1 ? "" : "s"} (ran back-and-forth, not a clean sale)`);
+  if (s.borrowed_ratio >= 0.5) bits.push(`${Math.round(s.borrowed_ratio * 100)}% of its fleet runs under other DOTs`);
+  return `VIN risk ${r.band.toUpperCase()} (${r.score}/100)${bits.length ? ` — ${bits.join("; ")}` : ""}`;
+}
+
+type RiskCheck = { blocked: boolean; label?: string | null; reuse?: ReuseMatch[]; vinRisk?: VinRisk | null };
 
 async function checkSignupRisk(payload: {
   ip: string;
@@ -193,6 +225,28 @@ function buildRiskBannerHtml(risk: RiskCheck, ipIsMobileCarrier: boolean): strin
   <strong style="color:#991b1b;font-size:14px;">⚠ REUSED SIGNUP INFO — matches a previous signup by a different carrier</strong>
   <ul style="font-size:13px;color:#7f1d1d;margin:8px 0 4px 20px;line-height:1.5;">${lines}</ul>
   <div style="font-size:11px;color:#991b1b;margin-top:6px;">Verify identity before onboarding — reused phones/emails/IPs across different MC numbers are a common double-brokering / identity-theft pattern.</div>
+</div>`);
+  }
+  const vin = risk.vinRisk;
+  if (vin && vinRiskIsAlarming(vin)) {
+    const flagged = vin.matches.filter((m) => m.flagged).slice(0, 8);
+    const rows = flagged
+      .map((m) => {
+        const pat =
+          m.pattern === "rotating"
+            ? `<span style="color:#991b1b;font-weight:700">rotating (ran back-and-forth — not a clean sale)</span>`
+            : `one-way transfer`;
+        return `<li style="margin:4px 0;"><strong>${m.name || `DOT ${m.dot}`}</strong>${m.state ? ` (${m.state})` : ""} — ${m.shared_vins} shared tractor${m.shared_vins === 1 ? "" : "s"}, ${pat}</li>`;
+      })
+      .join("");
+    parts.push(`<div style="background:#fff5f5;border:1px solid #CC1B1B;border-left:4px solid #CC1B1B;border-radius:8px;padding:14px;margin:0 0 16px;font-family:system-ui,sans-serif;">
+  <strong style="color:#991b1b;font-size:14px;">⚠ VIN OVERLAP RISK (${vin.band.toUpperCase()} ${vin.score}/100)${vin.hard_stop ? " — HARD STOP" : ""}</strong>
+  <div style="font-size:13px;color:#7f1d1d;margin:6px 0;">${vinRiskSummary(vin)}.</div>${
+    flagged.length
+      ? `<ul style="font-size:13px;color:#7f1d1d;margin:8px 0 4px 20px;line-height:1.5;">${rows}</ul>`
+      : ""
+  }
+  <div style="font-size:11px;color:#991b1b;margin-top:6px;">A shared <strong>tractor</strong> (not trailer) means shared drivers. When a new/small carrier runs the same tractors as already-blocked carriers, it is almost always the same operation under a fresh authority (chameleon / double-broker).</div>
 </div>`);
   }
   return parts.join("");
@@ -1223,9 +1277,11 @@ export async function POST(req: NextRequest) {
       }),
     ]);
     const hasReuse = !!riskCheck?.reuse?.length;
+    const vinAlarming = vinRiskIsAlarming(riskCheck?.vinRisk ?? null);
     if (equipCheck?.hasDanger) console.warn("[submit] ⚠ equipment mismatch:", JSON.stringify(equipCheck.flags));
     if (riskCheck?.blocked) console.warn("[submit] ⚠ blocked scammer IP submitted:", ipAddress);
     if (hasReuse) console.warn("[submit] ⚠ reused signup info:", JSON.stringify(riskCheck?.reuse));
+    if (vinAlarming) console.warn("[submit] ⚠ VIN overlap risk:", JSON.stringify(riskCheck?.vinRisk?.signals));
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
     const FROM = process.env.FROM_EMAIL || "onboarding@simonexpress.com";
     const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 35);
@@ -1257,11 +1313,13 @@ export async function POST(req: NextRequest) {
     const dispatchSubjectBase = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
     const dispatchSubject = riskCheck?.blocked
       ? `****SCAMMER IDENTIFIED BY IP ADDRESS - DO NOT USE***** ${dispatchSubjectBase}`
-      : hasReuse
-        ? `⚠️ REUSED SIGNUP INFO — ${dispatchSubjectBase}`
-        : equipCheck?.hasDanger
-          ? `🚫 EQUIPMENT MISMATCH — ${dispatchSubjectBase}`
-          : dispatchSubjectBase;
+      : vinAlarming
+        ? `⚠️ VIN OVERLAP RISK${riskCheck?.vinRisk?.hard_stop ? " (HARD STOP)" : ""} — ${dispatchSubjectBase}`
+        : hasReuse
+          ? `⚠️ REUSED SIGNUP INFO — ${dispatchSubjectBase}`
+          : equipCheck?.hasDanger
+            ? `🚫 EQUIPMENT MISMATCH — ${dispatchSubjectBase}`
+            : dispatchSubjectBase;
     let safetyNetSent = false;
     const sendAgreementSafetyNet = async (reason: string): Promise<boolean> => {
       if (safetyNetSent) return true;
