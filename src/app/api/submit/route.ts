@@ -175,6 +175,10 @@ type EquipmentCheck = {
   hasDanger: boolean;
   emailHtml: string;
   flags: { level: "danger" | "caution" | "info"; text: string }[];
+  // Vetting gates computed by KPI from SaferWatch + FMCSA (safety rating,
+  // OOS order, authority, CSA BASICs, insurance on file, authority age).
+  hardStops?: string[]; // grade forced to F — do not use
+  caps?: string[];      // grade capped — restricted / needs review
 };
 
 async function checkEquipmentProfile(payload: {
@@ -293,8 +297,9 @@ export async function buildDispatchEmail(data: {
   ipAddress: string;
   geoInfo: Record<string, string>;
   coiScan?: CoiScanResult | null;
+  gate?: { hardStops: string[]; caps: string[] } | null;
 }): Promise<string> {
-  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan } = data;
+  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan, gate } = data;
   const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
   // Normalize MC# — strip any leading "MC" prefix so we never render "MC MC024308"
   const mcRaw = (companyData?.mc as string) || (fmcsaData?.mc as string) || "";
@@ -487,7 +492,9 @@ export async function buildDispatchEmail(data: {
   }
   // Safety rating
   const ratingLower = String(fmcsaData?.safetyRating || "").toLowerCase();
-  if (ratingLower === "conditional") alerts.push({ level: "warn", label: "FMCSA Safety Rating: Conditional" });
+  // Conditional is a hard stop like Unsatisfactory — a Conditional carrier
+  // should not be ordinary capacity, so it fails the tally, not just warns.
+  if (ratingLower === "conditional") alerts.push({ level: "fail", label: "FMCSA Safety Rating: Conditional" });
   if (ratingLower === "unsatisfactory") alerts.push({ level: "fail", label: "FMCSA Safety Rating: Unsatisfactory" });
   // Out of service
   if (fmcsaData?.outOfService === "Yes") alerts.push({ level: "fail", label: "Carrier is OUT OF SERVICE" });
@@ -552,6 +559,11 @@ export async function buildDispatchEmail(data: {
       }
     }
   }
+
+  // Vetting gates computed by KPI (SaferWatch + FMCSA): hard stops fail the
+  // tally so the status pill goes red; caps mean restricted use / review.
+  for (const stop of gate?.hardStops ?? []) alerts.push({ level: "fail", label: `Vetting hard stop: ${stop}` });
+  for (const cap of gate?.caps ?? []) alerts.push({ level: "warn", label: `Vetting restriction: ${cap}` });
 
   const okCount = alerts.filter(a => a.level === "ok").length;
   const warnCount = alerts.filter(a => a.level === "warn").length;
@@ -1500,7 +1512,10 @@ export async function POST(req: NextRequest) {
     let htmlBody: string;
     try {
       htmlBody = await withTimeout(
-        buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan }),
+        buildDispatchEmail({
+          companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan,
+          gate: equipCheck ? { hardStops: equipCheck.hardStops ?? [], caps: equipCheck.caps ?? [] } : null,
+        }),
         20000,
         "buildDispatchEmail",
       );
@@ -1536,6 +1551,17 @@ export async function POST(req: NextRequest) {
     // rendered by KPI) goes above the packet details.
     if (equipCheck?.emailHtml) {
       htmlBody = equipCheck.emailHtml + htmlBody;
+    }
+
+    // Vetting hard stops (Conditional/Unsatisfactory rating, OOS order,
+    // inactive authority, CSA BASICs over threshold, etc.) get a red banner
+    // above the vetting block so "do not use" is the first thing dispatch
+    // reads — only the scammer-IP banner outranks it.
+    if (equipCheck?.hardStops?.length) {
+      htmlBody = `<div style="background:#7f1d1d;border-radius:8px;padding:16px;margin:0 0 16px;font-family:system-ui,sans-serif;text-align:center;">
+  <div style="font-size:16px;font-weight:900;color:#ffffff;letter-spacing:.5px;">🛑 VETTING HARD STOP — DO NOT USE</div>
+  <div style="font-size:13px;color:#fecaca;margin-top:6px;">${equipCheck.hardStops.join(" · ")}. Requires compliance review before any freight is tendered.</div>
+</div>` + htmlBody;
     }
 
     // Scammer / reused-info warnings go at the VERY top of the email, above
