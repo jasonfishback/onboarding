@@ -133,7 +133,16 @@ function vinRiskSummary(r: VinRisk): string {
   return `VIN risk ${r.band.toUpperCase()} (${r.score}/100)${bits.length ? ` — ${bits.join("; ")}` : ""}`;
 }
 
-type RiskCheck = { blocked: boolean; label?: string | null; reuse?: ReuseMatch[]; vinRisk?: VinRisk | null };
+// blockedCarrier: the DOT/MC itself is on kpi's "never use again" list
+// (blocked_carriers) — independent of the IP blocklist.
+type BlockedCarrierHit = { dot: number | null; mc: string | null; name: string | null; reason: string | null };
+type RiskCheck = {
+  blocked: boolean;
+  label?: string | null;
+  reuse?: ReuseMatch[];
+  vinRisk?: VinRisk | null;
+  blockedCarrier?: BlockedCarrierHit | null;
+};
 
 async function checkSignupRisk(payload: {
   ip: string;
@@ -234,6 +243,15 @@ async function recordSignupCompletion(kpiSessionId: string | null, flat: Record<
 // Warning banner prepended to the dispatch email when the risk check hits.
 function buildRiskBannerHtml(risk: RiskCheck, ipIsMobileCarrier: boolean): string {
   const parts: string[] = [];
+  if (risk.blockedCarrier) {
+    const bc = risk.blockedCarrier;
+    const id = [bc.mc ? `MC ${String(bc.mc).replace(/\D/g, "")}` : "", bc.dot ? `DOT ${bc.dot}` : ""].filter(Boolean).join(" / ");
+    parts.push(`<div style="background:#7f1d1d;border-radius:8px;padding:16px;margin:0 0 16px;font-family:system-ui,sans-serif;text-align:center;">
+  <div style="font-size:16px;font-weight:900;color:#ffffff;letter-spacing:.5px;">⛔ BLOCKED CARRIER — DO NOT USE</div>
+  <div style="font-size:13px;color:#ffe0e0;margin-top:6px;">This carrier is on the Simon Express block list${bc.name ? ` as <strong style="color:#fff">${bc.name}</strong>` : ""}${id ? ` (${id})` : ""}.${bc.reason ? ` ${bc.reason}` : ""}</div>
+  <div style="font-size:12px;color:#ffe0e0;margin-top:6px;">Do not tender freight. If you believe this is a mistake, talk to Jason or TeJay before doing anything with this packet.</div>
+</div>`);
+  }
   if (risk.blocked) {
     parts.push(`<div style="background:#CC1B1B;border-radius:8px;padding:16px;margin:0 0 16px;font-family:system-ui,sans-serif;text-align:center;">
   <div style="font-size:16px;font-weight:900;color:#ffffff;letter-spacing:.5px;">🚨 SCAMMER IDENTIFIED BY IP ADDRESS — DO NOT USE</div>
@@ -1311,6 +1329,7 @@ export async function POST(req: NextRequest) {
     const vinAlarming = vinRiskIsAlarming(riskCheck?.vinRisk ?? null);
     if (equipCheck?.hasDanger) console.warn("[submit] ⚠ equipment mismatch:", JSON.stringify(equipCheck.flags));
     if (riskCheck?.blocked) console.warn("[submit] ⚠ blocked scammer IP submitted:", ipAddress);
+    if (riskCheck?.blockedCarrier) console.warn("[submit] ⛔ BLOCKED CARRIER submitted:", JSON.stringify(riskCheck.blockedCarrier));
     if (hasReuse) console.warn("[submit] ⚠ reused signup info:", JSON.stringify(riskCheck?.reuse));
     if (vinAlarming) console.warn("[submit] ⚠ VIN overlap risk:", JSON.stringify(riskCheck?.vinRisk?.signals));
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Denver" });
@@ -1342,7 +1361,9 @@ export async function POST(req: NextRequest) {
     // more than once — we want at most ONE email per submit unless we have
     // a genuine reason to split.
     const dispatchSubjectBase = `🚛 New Carrier Onboarding: ${companyName} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || ""}`;
-    const dispatchSubject = riskCheck?.blocked
+    const dispatchSubject = riskCheck?.blockedCarrier
+      ? `⛔ BLOCKED CARRIER - DO NOT USE — ${dispatchSubjectBase}`
+      : riskCheck?.blocked
       ? `****SCAMMER IDENTIFIED BY IP ADDRESS - DO NOT USE***** ${dispatchSubjectBase}`
       : vinAlarming
         ? `⚠️ VIN OVERLAP RISK${riskCheck?.vinRisk?.hard_stop ? " (HARD STOP)" : ""} — ${dispatchSubjectBase}`
@@ -1540,7 +1561,7 @@ export async function POST(req: NextRequest) {
 
     // Scammer / reused-info warnings go at the VERY top of the email, above
     // everything else (including the docs-failure banner and equipment block).
-    if (riskCheck && (riskCheck.blocked || hasReuse)) {
+    if (riskCheck && (riskCheck.blocked || riskCheck.blockedCarrier || hasReuse)) {
       htmlBody = buildRiskBannerHtml(riskCheck, geoInfo.mobile === "Yes") + htmlBody;
     }
 
