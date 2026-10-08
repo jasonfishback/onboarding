@@ -6,6 +6,7 @@ import { generateW9PDF } from "@/lib/generateW9Pdf";
 import { buildAttachmentsPdf } from "@/lib/processDocuments";
 import { validateEmail } from "@/lib/validateEmail";
 import { isFullName } from "@/lib/validateName";
+import { checkLegalName } from "@/lib/legalNameCheck";
 import { scanCOI, type CoiScanResult } from "@/lib/scanCOI";
 import { getSessionFiles, deleteSessionFiles } from "@/app/api/upload/route";
 
@@ -1230,6 +1231,26 @@ export async function POST(req: NextRequest) {
     const resend = new Resend(resendKey);
     const body = await req.json();
     const { fmcsaData, companyData, docsData, wcData, sigData, sessionId, kpiSessionId } = body;
+
+    // ── Legal-name guard (server backstop for the Step 2 client gate) ──
+    // Carriers kept submitting their FACTORING company (RTS / OTR / ...) as
+    // Legal Company Name. Step 2 refuses to continue; this catches a stale
+    // tab or a scripted post. "warn" (differs from FMCSA, not factoring-
+    // shaped) only adds a banner to the dispatch email further down.
+    const legalNameVerdict = checkLegalName({
+      legalName: companyData?.legalName,
+      fmcsaName: fmcsaData?.name,
+      factoringName: companyData?.usesFactoring ? companyData?.factoringName : "",
+    });
+    if (legalNameVerdict.level === "block") {
+      console.warn("[submit] rejected: legal name looks like a factoring company", {
+        legalName: companyData?.legalName, fmcsaName: fmcsaData?.name, factoringName: companyData?.factoringName,
+      });
+      return NextResponse.json(
+        { error: "Legal Company Name must be your carrier's legal name, not your factoring company. Go back to Company Profile and fix it." },
+        { status: 400 },
+      );
+    }
     failContext = `${(companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier"} — MC ${(companyData?.mc as string) || (fmcsaData?.mc as string) || "?"} / DOT ${(companyData?.dot as string) || (fmcsaData?.dot as string) || "?"} <${(companyData?.email as string) || "no email"}>`;
 
     // Enforce signer attestations server-side (the client also gates these, but
@@ -1551,6 +1572,17 @@ export async function POST(req: NextRequest) {
   </div>
 </div>`;
       htmlBody = warningBanner + htmlBody;
+    }
+
+    // Legal name differs from the FMCSA record (DBA confusion, typo, or a
+    // deliberate edit). Not factoring-shaped — those were rejected up top.
+    if (legalNameVerdict.level === "warn" && fmcsaData?.name) {
+      const escT = (s: unknown) => String(s ?? "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
+      const idLabel = String((companyData?.mc as string) || (fmcsaData?.mc as string) || (fmcsaData?.dot as string) || "").replace(/^MC/i, "MC ");
+      htmlBody =
+        `<div style="background:#fffbeb;border:1px solid #f59e0b;border-left:4px solid #f59e0b;border-radius:8px;padding:12px 14px;margin:0 0 16px;font-family:system-ui,sans-serif;font-size:13px;color:#78350f;">
+  <strong>⚠ Legal name doesn't match FMCSA.</strong> Carrier typed <strong>${escT(companyData?.legalName)}</strong>; FMCSA lists ${escT(idLabel)} as <strong>${escT(fmcsaData.name)}</strong>${companyData?.dba ? ` (DBA entered: ${escT(companyData.dba)})` : ""}. Use the FMCSA name on the carrier file unless they show paperwork for a name change.
+</div>` + htmlBody;
     }
 
     // FMCSA inspection vetting block (equipment profile + mismatch flags,

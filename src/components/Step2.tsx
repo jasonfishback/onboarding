@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Btn, RED, DARK } from "@/components/ui";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import type { CarrierData } from "./Step1";
+import { checkLegalName } from "@/lib/legalNameCheck";
 
 interface ContactData {
   name: string;
@@ -64,24 +65,43 @@ function phoneError(val: string): string {
 }
 
 // Simple field component using CSS classes
-function Field({ label, value, onChange, placeholder, required, type = "text", inputMode, error, errorMsg }: {
+function Field({ label, value, onChange, placeholder, required, type = "text", inputMode, error, errorMsg, name, autoComplete, locked, onUnlock }: {
   label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; required?: boolean; type?: string;
   inputMode?: "numeric" | "tel" | "email" | "text"; error?: boolean; errorMsg?: string;
+  name?: string; autoComplete?: string;
+  /** Read-only until the carrier clicks "Edit" — browser autofill can't touch a readOnly input. */
+  locked?: boolean; onUnlock?: () => void;
 }) {
   return (
     <div>
-      <label className="field-label">
+      <label className="field-label" style={locked ? { display: "flex", alignItems: "center", gap: 8 } : undefined}>
         {label}{required && <span style={{ color: RED }}> *</span>}
+        {locked && (
+          <>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#22a355", background: "#edfaf3", border: "1px solid #22a355", borderRadius: 2, padding: "1px 6px", letterSpacing: ".04em", textTransform: "none" }}>FROM FMCSA</span>
+            <button type="button" onClick={onUnlock}
+              style={{ marginLeft: "auto", fontFamily: "DM Sans", fontSize: 11, fontWeight: 700, color: "#6B7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, padding: 0, textTransform: "none", letterSpacing: 0 }}>
+              Edit
+            </button>
+          </>
+        )}
       </label>
       <input
         type={type}
         inputMode={inputMode}
+        name={name}
+        autoComplete={autoComplete}
+        readOnly={locked}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         className="field-input"
-        style={error || errorMsg ? { borderColor: "#CC1B1B", background: "#fff5f5" } : undefined}
+        style={
+          error || errorMsg ? { borderColor: "#CC1B1B", background: "#fff5f5" }
+          : locked ? { background: "#F3F4F6", color: "#374151", cursor: "default" }
+          : undefined
+        }
       />
       {errorMsg && (
         <div style={{ color: "#CC1B1B", fontSize: 11, fontWeight: 600, marginTop: 3 }}>
@@ -171,6 +191,23 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
   const [factoringName, setFactoringName] = useState("");
   const [wantsQuickPay, setWantsQuickPay] = useState(false);
 
+  // Identity fields found by the FMCSA lookup stay read-only until the
+  // carrier deliberately clicks "Edit". Carriers (and Chrome autofill) kept
+  // replacing Legal Company Name with their factoring company — see
+  // lib/setup/legalNameCheck.ts.
+  const [nameLocked, setNameLocked] = useState(!!prefill?.name);
+  const [idLocked, setIdLocked] = useState(!!(prefill?.mc || prefill?.dot));
+  const nameVerdict = checkLegalName({
+    legalName: form.legalName,
+    fmcsaName: prefill?.name,
+    factoringName: usesFactoring ? factoringName : "",
+  });
+  const nameBlocked = nameVerdict.level === "block";
+  const nameBlockMsg = !nameBlocked ? "" :
+    nameVerdict.reason === "matches_factoring_name"
+      ? "That's your factoring company, not your carrier. It already goes in the Factoring Company box below — put YOUR company's legal name here."
+      : "That looks like a factoring company, not a motor carrier. Enter the legal name your MC/DOT authority is registered under.";
+
   return (
     <div className="step-wrapper">
       <div style={{ fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 6 }}>
@@ -256,10 +293,33 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       <div className="step-card">
         <div className="section-title">Company Information</div>
         <div className="field-grid">
-          <div className="full"><Field label="Legal Company Name" value={form.legalName} onChange={set("legalName")} required error={submitted && !form.legalName} /></div>
-          <div className="full"><Field label="DBA / Trade Name" value={form.dba} onChange={set("dba")} placeholder="If different from legal name" /></div>
-          <Field label={`MC Number${!form.dot ? " *" : " (if applicable)"}`} value={form.mc} onChange={set("mc")} placeholder="MC123456" inputMode="numeric" error={submitted && !form.mc && !form.dot} />
-          <Field label={`DOT Number${!form.mc ? " *" : " (if applicable)"}`} value={form.dot} onChange={set("dot")} placeholder="9876543" inputMode="numeric" error={submitted && !form.mc && !form.dot} />
+          <div className="full">
+            <Field label="Legal Company Name" value={form.legalName} onChange={set("legalName")} required
+              name="carrier-legal-name" autoComplete="off"
+              locked={nameLocked} onUnlock={() => setNameLocked(false)}
+              error={submitted && !form.legalName}
+              errorMsg={nameBlocked ? nameBlockMsg : undefined} />
+            {nameBlocked && prefill?.name && (
+              <button type="button" onClick={() => { set("legalName")(prefill.name); setNameLocked(true); }}
+                style={{ marginTop: 6, fontFamily: "DM Sans", fontSize: 12, fontWeight: 700, color: "#22a355", background: "#edfaf3", border: "1.5px solid #22a355", borderRadius: 2, padding: "5px 10px", cursor: "pointer" }}>
+                ↩ Use FMCSA name: {prefill.name}
+              </button>
+            )}
+            {!nameBlocked && nameVerdict.level === "warn" && prefill?.name && (
+              <div style={{ marginTop: 4, fontSize: 11, color: "#92400e", lineHeight: 1.4 }}>
+                ⚠ FMCSA lists MC/DOT {prefill.mc || prefill.dot} as <strong>{prefill.name}</strong>. Trade names go in the DBA box below.
+                {" "}<button type="button" onClick={() => { set("legalName")(prefill.name); setNameLocked(true); }}
+                  style={{ fontFamily: "DM Sans", fontSize: 11, fontWeight: 700, color: "#92400e", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                  Use FMCSA name
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="full"><Field label="DBA / Trade Name" value={form.dba} onChange={set("dba")} placeholder="If different from legal name" name="carrier-dba" autoComplete="off" /></div>
+          <Field label={`MC Number${!form.dot ? " *" : " (if applicable)"}`} value={form.mc} onChange={set("mc")} placeholder="MC123456" inputMode="numeric" error={submitted && !form.mc && !form.dot}
+            name="carrier-mc" autoComplete="off" locked={idLocked && !!prefill?.mc} onUnlock={() => setIdLocked(false)} />
+          <Field label={`DOT Number${!form.mc ? " *" : " (if applicable)"}`} value={form.dot} onChange={set("dot")} placeholder="9876543" inputMode="numeric" error={submitted && !form.mc && !form.dot}
+            name="carrier-dot" autoComplete="off" locked={idLocked && !!prefill?.dot} onUnlock={() => setIdLocked(false)} />
         </div>
         {submitted && !form.mc && !form.dot && (
           <div style={{ fontSize: 12, color: "#CC1B1B", marginBottom: 10, marginTop: -4 }}>
@@ -413,6 +473,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
       {submitted && (() => {
         const missing = [];
         if (!form.legalName) missing.push("Legal Company Name");
+        else if (nameBlocked) missing.push("Legal Company Name must be YOUR carrier, not your factoring company");
         if (!form.mc && !form.dot) missing.push("MC# or DOT#");
         if (!form.ein) missing.push("EIN / Tax ID");
         else if (einError(form.ein)) missing.push(einError(form.ein));
@@ -436,7 +497,7 @@ export default function Step2({ prefill, onNext, onBack }: Step2Props) {
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         <Btn onClick={() => {
           setSubmitted(true);
-          const valid = !!form.legalName && (!!form.mc || !!form.dot) && !!form.ein &&
+          const valid = !!form.legalName && !nameBlocked && (!!form.mc || !!form.dot) && !!form.ein &&
             !einError(form.ein) &&
             !!form.address && !!form.city && !!form.zip &&
             !!form.contactName && !!form.phone && !phoneError(form.phone) && !!form.email && !emailError(form.email);
