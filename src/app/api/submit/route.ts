@@ -137,13 +137,73 @@ function vinRiskSummary(r: VinRisk): string {
 // blockedCarrier: the DOT/MC itself is on kpi's "never use again" list
 // (blocked_carriers) — independent of the IP blocklist.
 type BlockedCarrierHit = { dot: number | null; mc: string | null; name: string | null; reason: string | null };
+// phoneIntel: Twilio line_type_intelligence per signup phone (kpi looks it up
+// and caches it). Numverify calls most US numbers "mobile/landline"; Twilio
+// tells a Verizon handset from a Twilio / Google Voice app number — the
+// offshore-dispatch tell (Kooner Freightway 10/13/26).
+type PhoneIntelOut = { digits: string; lineType: string | null; voipKind: "fixed" | "non-fixed" | null; carrier: string | null; source: string };
+// calls: Simon Express <-> signup-phone calls in the last 7 days, relative to
+// when the signup session started ("the dispatcher called Jax 6 min before").
+type SignupCallOut = {
+  number: string; at: string; theyCalledUs: boolean; rep: string | null; repName: string | null;
+  outcome: string; seconds: number | null; offsetMin: number | null;
+};
 type RiskCheck = {
   blocked: boolean;
   label?: string | null;
   reuse?: ReuseMatch[];
   vinRisk?: VinRisk | null;
   blockedCarrier?: BlockedCarrierHit | null;
+  phoneIntel?: PhoneIntelOut[];
+  calls?: SignupCallOut[];
+  signupStartedAt?: string | null;
 };
+
+type PhoneBadge = { type: string; color: string; badge: string; carrier?: string; source: string };
+
+// Same badge shape detectPhoneType() returns, built from Twilio intel. Wins
+// over Numverify when present.
+function twilioBadge(p: PhoneIntelOut | undefined): PhoneBadge | null {
+  if (!p || !p.lineType) return null;
+  const carrier = p.carrier || undefined;
+  switch (p.lineType) {
+    case "mobile": return { type: "Mobile", color: "#22a355", badge: "📱 MOBILE", carrier, source: "twilio" };
+    case "landline": return { type: "Landline", color: "#0066cc", badge: "☎ LANDLINE", carrier, source: "twilio" };
+    case "voip": {
+      const badge = p.voipKind === "fixed" ? "🌐 VoIP (FIXED LINE)" : p.voipKind === "non-fixed" ? "🌐 VoIP (APP / VIRTUAL NUMBER)" : "🌐 VoIP";
+      return { type: "VoIP", color: "#e07000", badge, carrier, source: "twilio" };
+    }
+    case "toll_free": return { type: "Toll-Free", color: "#8a2be2", badge: "📞 TOLL-FREE", carrier, source: "twilio" };
+    case "premium_rate": return { type: "Premium Rate", color: "#CC1B1B", badge: "⚠ PREMIUM RATE", carrier, source: "twilio" };
+    default: return null;
+  }
+}
+
+// One line per call in the dark header, newest three, nothing when there are
+// none — the sheet only grows when there's something to say.
+function buildCallsStripHtml(calls: SignupCallOut[] | undefined, roleOf: (digits: string) => string | null): string {
+  if (!calls || !calls.length) return "";
+  const fmt = (d: string) => (d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : d);
+  const when = (c: SignupCallOut) => {
+    if (c.offsetMin == null) {
+      return new Date(c.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }) + " MT";
+    }
+    const m = Math.abs(c.offsetMin);
+    const span = m < 120 ? `${m} min` : m < 2880 ? `${(m / 60).toFixed(1)} hr` : `${Math.round(m / 1440)} days`;
+    return `${span} ${c.offsetMin < 0 ? "before" : "after"} signup`;
+  };
+  const dur = (c: SignupCallOut) => (c.seconds != null ? `${Math.floor(c.seconds / 60)}m ${c.seconds % 60}s` : c.outcome);
+  const shown = calls.slice(-3);
+  const more = calls.length - shown.length;
+  const lines = shown.map((c) => {
+    const rep = c.repName || (c.rep ? c.rep.split("@")[0] : "us");
+    const role = roleOf(c.number);
+    const who = `<span style="color:#ffffff;font-weight:700">${fmt(c.number)}</span>${role ? ` (${role})` : ""}`;
+    return `${who} ${c.theyCalledUs ? "called" : "was called by"} <span style="color:#ffffff">${rep}</span> ${when(c)} · ${dur(c)}`;
+  });
+  const indent = "<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+  return `<br><span style="color:#9ca3af">📞 ${lines.join(indent)}${more > 0 ? `${indent}+${more} more in kpi` : ""}</span>`;
+}
 
 async function checkSignupRisk(payload: {
   ip: string;
@@ -312,8 +372,11 @@ export async function buildDispatchEmail(data: {
   ipAddress: string;
   geoInfo: Record<string, string>;
   coiScan?: CoiScanResult | null;
+  risk?: RiskCheck | null;
 }): Promise<string> {
-  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan } = data;
+  const { companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan, risk } = data;
+  const kpiBase = process.env.KPI_BASE_URL || "https://kpi.simonexpress.com";
+  const vinCheckBtn = ` <a href="${kpiBase}/dashboard/vin-check" target="_blank" style="display:inline-block;margin-left:8px;padding:3px 10px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#1a1a1a;color:white;text-decoration:none">🔎 Check a VIN</a>`;
   const name = (companyData?.legalName as string) || (fmcsaData?.name as string) || "Carrier";
   // Normalize MC# — strip any leading "MC" prefix so we never render "MC MC024308"
   const mcRaw = (companyData?.mc as string) || (fmcsaData?.mc as string) || "";
@@ -341,11 +404,22 @@ export async function buildDispatchEmail(data: {
   const sameAsPrimary = primaryDigits && primaryDigits === dispatchDigits;
   // Run both phone lookups in parallel (each is independently bounded) so two
   // distinct numbers can't add their timeouts together on the critical path.
-  const [phoneTypeInfo, dispatchPhoneTypeInfoRaw] = await Promise.all([
+  const [numverifyPrimary, dispatchPhoneTypeInfoRaw] = await Promise.all([
     detectPhoneType(primaryPhone),
     sameAsPrimary || !dispatchPhone ? Promise.resolve(null) : detectPhoneType(dispatchPhone),
   ]);
-  const dispatchPhoneTypeInfo = sameAsPrimary ? phoneTypeInfo : dispatchPhoneTypeInfoRaw;
+  const numverifyDispatch = sameAsPrimary ? numverifyPrimary : dispatchPhoneTypeInfoRaw;
+  // Twilio line type (via kpi ip-check) beats Numverify when we have it.
+  const twilioFor = (digits: string) => twilioBadge(risk?.phoneIntel?.find((p) => p.digits === digits.slice(-10)));
+  const phoneTypeInfo: PhoneBadge | null = twilioFor(primaryDigits) ?? numverifyPrimary;
+  const dispatchPhoneTypeInfo: PhoneBadge | null = sameAsPrimary ? phoneTypeInfo : (twilioFor(dispatchDigits) ?? numverifyDispatch);
+  const billingPhone = (((companyData?.billing as Record<string, string>) || {}).phone || "").trim();
+  const billingDigits = billingPhone.replace(/[^0-9]/g, "");
+  const billingDistinct = billingDigits.length >= 10 && billingDigits !== primaryDigits && billingDigits !== dispatchDigits;
+  const billingPhoneTypeInfo: PhoneBadge | null = billingDistinct ? twilioFor(billingDigits) : null;
+  const roleOfPhone = (d: string): string | null =>
+    d === primaryDigits.slice(-10) ? "primary" : d === dispatchDigits.slice(-10) ? "dispatch" : d === billingDigits.slice(-10) ? "billing" : null;
+  const callsStripHtml = buildCallsStripHtml(risk?.calls, roleOfPhone);
 
   // Pre-compute email validation for all email fields (primary, dispatch, billing, agent)
   // Dedupe identical emails to a single validation call so we don't waste Abstract's free tier (100/mo)
@@ -496,6 +570,10 @@ export async function buildDispatchEmail(data: {
     if (phoneTypeInfo.type === "Premium Rate") alerts.push({ level: "fail", label: "Primary phone is premium rate" });
     if (phoneTypeInfo.type === "Invalid") alerts.push({ level: "fail", label: "Primary phone invalid" });
   }
+  if (!sameAsPrimary && dispatchPhoneTypeInfo?.type === "VoIP") {
+    alerts.push({ level: "warn", label: `Dispatch phone is VoIP${dispatchPhoneTypeInfo.carrier ? ` (${dispatchPhoneTypeInfo.carrier})` : ""} — verify who is actually dispatching` });
+  }
+  if (billingPhoneTypeInfo?.type === "VoIP") alerts.push({ level: "warn", label: "Billing phone is VoIP" });
   // Email validation — only surface PROBLEMS in the summary (a pass doesn't guarantee deliverability)
   if (primaryEmailValidation) {
     if (primaryEmailValidation.disposable) alerts.push({ level: "fail", label: "Primary email is disposable" });
@@ -652,6 +730,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;ba
         : "";
       return `<br><span style="color:#9ca3af">🌐 Submitted from: <span style="color:${ipColor};font-weight:700">${ipAddress}</span>${ipLoc ? ` · <span style="color:${ipColor}">${ipLoc}${!isUSA && geoInfo.country ? `, ${geoInfo.country}` : ""}</span>` : ""}${geoInfo.isp ? ` · <span style="color:#d4d4d8">${geoInfo.isp}</span>` : ""} · <span style="color:#d4d4d8">${deviceIcon} ${deviceLabel}</span>${deviceTooltip}${proxyFlag ? ` · <strong style="color:#ff6b6b">🚩 PROXY/VPN</strong>` : ""}</span>`;
     })() : ""}
+    ${callsStripHtml}
     ${(fmcsaData?.mcs150Date && fmcsaData.mcs150Date !== "Current") ? `<br><span style="color:#9ca3af">📋 MCS-150 filed: <span style="color:#ffffff">${fmcsaData.mcs150Date as string}</span></span>` : ""}
   </p>
   <div style="display:inline-block;margin-top:14px;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:${overallBg};color:${overallColor}">
@@ -733,7 +812,7 @@ ${(() => {
       <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">DBA</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(companyData?.dba as string) || "—"}</div></div>
       ${hasMc ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">MC #</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block"><a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mcDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${mcDigits} ↗</a></div></div>` : ""}
       <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">DOT #</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${hasDot
-        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dotDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${dotDigits} ↗</a>${likelyIntrastate ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ LIKELY INTRASTATE</span>` : ""}`
+        ? `<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dotDigits}" target="_blank" style="color:#0066cc;text-decoration:none;font-weight:700">${dotDigits} ↗</a>${vinCheckBtn}${likelyIntrastate ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff8ed;color:#e07000;border:1px solid #e07000">⚠ LIKELY INTRASTATE</span>` : ""}`
         : "—"
       }</div></div>
       <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">EIN / Tax ID</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(() => {
@@ -781,6 +860,7 @@ ${(() => {
         return `${display}${typeBadge}`;
       })()}</div></div>
       ${dispatchDigits && !sameAsPrimary ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Dispatch Phone</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${dispatchPhone}${dispatchPhoneTypeInfo ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${dispatchPhoneTypeInfo.color};border:1px solid ${dispatchPhoneTypeInfo.color}">${dispatchPhoneTypeInfo.badge}${dispatchPhoneTypeInfo.carrier ? ` · ${dispatchPhoneTypeInfo.carrier}` : ""}</span>` : ""}</div></div>` : ""}
+      ${billingDistinct ? `<div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Billing Phone</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${billingPhone}${billingPhoneTypeInfo ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#fff;color:${billingPhoneTypeInfo.color};border:1px solid ${billingPhoneTypeInfo.color}">${billingPhoneTypeInfo.badge}${billingPhoneTypeInfo.carrier ? ` · ${billingPhoneTypeInfo.carrier}` : ""}</span>` : ""}</div></div>` : ""}
       <div class="f" style="background:#fafafa;border:1px solid #e4e4e7;border-radius:6px;padding:10px 12px;margin-bottom:4px"><div class="lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;color:#71717a;margin-bottom:4px;letter-spacing:.08em;display:block">Primary Email</div><div class="val" style="font-size:14px;color:#18181b;line-height:1.5;display:block">${(() => {
         const userEmail = primaryEmail.toLowerCase();
         const fmcsaEmail = ((fmcsaData?.email as string) || "").trim().toLowerCase();
@@ -1335,7 +1415,7 @@ export async function POST(req: NextRequest) {
         mc: (companyData?.mc as string) || (fmcsaData?.mc as string) || "",
         dot: (companyData?.dot as string) || (fmcsaData?.dot as string) || "",
         session_id: (sessionId as string) || null,
-        phones: [(companyData?.phone as string) || "", dispatchInfo.phone || ""].filter(Boolean),
+        phones: [(companyData?.phone as string) || "", dispatchInfo.phone || "", billingInfo.phone || ""].filter(Boolean),
         emails: [carrierEmail, dispatchInfo.email || "", billingInfo.email || ""].filter(Boolean),
         address: (companyData?.address as string) || null,
         zip: (companyData?.zip as string) || null,
@@ -1542,7 +1622,7 @@ export async function POST(req: NextRequest) {
     let htmlBody: string;
     try {
       htmlBody = await withTimeout(
-        buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan }),
+        buildDispatchEmail({ companyData, fmcsaData, docsData, wcData, sigData, ipAddress, geoInfo, coiScan, risk: riskCheck }),
         20000,
         "buildDispatchEmail",
       );
