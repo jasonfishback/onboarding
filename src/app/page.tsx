@@ -10,6 +10,52 @@ import Step4 from "@/components/Step4";
 import Step5 from "@/components/Step5";
 import Step6 from "@/components/Step6";
 
+// ── Saved progress ───────────────────────────────────────────────────────
+// Everything the carrier has entered is mirrored into THIS browser's
+// localStorage as they move through the steps, so a closed tab, a reload or a
+// dead connection doesn't send them back to the start. It lives only on their
+// device, expires on its own, and is wiped the moment a submit succeeds.
+// (Uploaded documents are already held server-side under docsData.sessionId
+// until the submit consumes them, so they come back with the session.)
+const PROGRESS_KEY = "simon_setup_progress_v1";
+const PROGRESS_TTL_MS = 48 * 60 * 60 * 1000;
+
+type PendingSubmit = { body: string; sig: Record<string, unknown> };
+type SavedProgress = {
+  savedAt: number;
+  step: number;
+  fmcsaData: CarrierData | null;
+  companyData: Record<string, unknown> | null;
+  docsData: Record<string, unknown> | null;
+  wcData: Record<string, unknown> | null;
+  // Set once the carrier has signed and tapped Submit but it hasn't gone through.
+  pending: PendingSubmit | null;
+};
+
+function loadProgress(): SavedProgress | null {
+  try {
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as SavedProgress;
+    const fresh = saved && typeof saved.savedAt === "number" && Date.now() - saved.savedAt < PROGRESS_TTL_MS;
+    if (!fresh || typeof saved.step !== "number" || saved.step < 1 || saved.step > 5) {
+      localStorage.removeItem(PROGRESS_KEY);
+      return null;
+    }
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function saveProgress(progress: SavedProgress): void {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress)); } catch { /* storage full/blocked — resume just won't be offered */ }
+}
+
+function clearProgress(): void {
+  try { localStorage.removeItem(PROGRESS_KEY); } catch {}
+}
+
 export default function Home() {
   const [step, setStep] = useState(0);
   const [fmcsaData, setFmcsaData] = useState<CarrierData | null>(null);
@@ -20,8 +66,15 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  // Saved progress found on load — offered on the first screen, never applied silently
+  // (a dispatcher may be setting up a different carrier on the same device).
+  const [resumeOffer, setResumeOffer] = useState<SavedProgress | null>(null);
+  // Flips once the packet is delivered so nothing gets re-saved afterwards.
+  const submitted = useRef(false);
+
   useEffect(() => {
     trackStep({ step: 1 });
+    setResumeOffer(loadProgress());
   }, []);
 
   const goTo = (n: number) => {
@@ -41,10 +94,47 @@ export default function Home() {
   // The exact request body + signature for the submission in flight. Kept in a
   // ref so an automatic or manual retry re-sends the SAME packet with the SAME
   // submissionId (the server uses that id to make sure it only processes once).
-  const pendingSubmit = useRef<{ body: string; sig: Record<string, unknown> } | null>(null);
+  const pendingSubmit = useRef<PendingSubmit | null>(null);
+
+  // Mirror progress to the device whenever the carrier lands on a new step.
+  // Nothing is written on the first screen, so an unanswered resume offer is
+  // never overwritten by an empty form.
+  useEffect(() => {
+    if (step < 1 || submitted.current) return;
+    saveProgress({ savedAt: Date.now(), step, fmcsaData, companyData, docsData, wcData, pending: step === 5 ? pendingSubmit.current : null });
+  }, [step, fmcsaData, companyData, docsData, wcData]);
+
+  const resumeSaved = () => {
+    const saved = resumeOffer;
+    if (!saved) return;
+    setFmcsaData(saved.fmcsaData);
+    setCompanyData(saved.companyData);
+    setDocsData(saved.docsData);
+    setWcData(saved.wcData);
+    setResumeOffer(null);
+    if (saved.step === 5 && saved.pending) {
+      // They had already signed and tapped Submit — put them straight back on
+      // the submit screen with the same packet ready to send.
+      pendingSubmit.current = saved.pending;
+      setSigData(saved.pending.sig);
+      setSubmitError("Welcome back. Your application is filled out and signed but has NOT been submitted yet. Tap Try Again to send it.");
+      setStep(5);
+    } else {
+      // Step 5 without a packet can't be re-sent — fall back to the signing step.
+      setStep(Math.min(saved.step, 4));
+    }
+    window.scrollTo(0, 0);
+  };
+
+  const startOver = () => {
+    clearProgress();
+    clearSession(); // a fresh start is a new funnel session in KPI
+    setResumeOffer(null);
+    trackStep({ step: 1 });
+  };
 
   const NETWORK_ERROR =
-    "Your application has NOT been submitted yet. We couldn't reach our server — usually this means your internet connection dropped. Everything you entered is still on this page: keep it open, check your connection, and tap Try Again.";
+    "Your application has NOT been submitted yet. We couldn't reach our server — usually this means your internet connection dropped. Everything you entered is saved on this device: check your connection and tap Try Again. If this page closes, reopen setup.simonexpress.com on this same device to pick up right here.";
   const SERVER_ERROR =
     "We had trouble processing your submission. Tap Try Again — if it keeps happening, contact dispatch@simonexpress.com so we can verify everything came through.";
 
@@ -128,6 +218,9 @@ export default function Home() {
           ...(pending.sig || {}),
         });
         clearSession();
+        // Delivered — wipe the saved copy from this device.
+        submitted.current = true;
+        clearProgress();
         pendingSubmit.current = null;
         return;
       }
@@ -247,6 +340,26 @@ export default function Home() {
 
       {step < 5 && <ProgressBar current={step} />}
 
+      {step === 0 && resumeOffer && (
+        <div style={{ maxWidth: 560, margin: "24px auto 0", padding: "0 20px" }}>
+          <div style={{ border: "2px solid #16A34A", borderRadius: 12, background: "#f0faf4", padding: 20, textAlign: "center" }}>
+            <div style={{ fontFamily: "DM Sans", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Welcome back</div>
+            <p style={{ fontSize: 14, color: "#444", lineHeight: 1.6, margin: "0 0 14px" }}>
+              We saved your progress
+              {((resumeOffer.companyData?.legalName as string) || resumeOffer.fmcsaData?.name) ? <> for <strong>{(resumeOffer.companyData?.legalName as string) || resumeOffer.fmcsaData?.name}</strong></> : null}
+              {resumeOffer.pending ? " — it is signed and ready to submit." : ` — you were on step ${Math.min(resumeOffer.step, 4) + 1} of 6.`}
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={resumeSaved} style={{ background: "#16A34A", color: "#fff", border: "none", borderRadius: 8, padding: "12px 22px", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+                Continue where I left off →
+              </button>
+              <button onClick={startOver} style={{ background: "#fff", color: "#444", border: "1px solid #bbb", borderRadius: 8, padding: "12px 22px", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
+                Start over
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {step === 0 && <Step1 onNext={(data) => { if (data) setFmcsaData(data); goTo(1); }} />}
       {step === 1 && <Step2 prefill={fmcsaData} onNext={(data) => { setCompanyData(data); goTo(2); }} onBack={() => goTo(0)} />}
       {step === 2 && <Step3 onNext={(data) => { setDocsData(data); goTo(3); }} onBack={() => goTo(1)} companyName={companyName} carrierEmail={(companyData?.email as string) || ""} companyData={companyData ?? undefined} />}
