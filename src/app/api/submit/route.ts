@@ -9,6 +9,7 @@ import { isFullName } from "@/lib/validateName";
 import { checkLegalName } from "@/lib/legalNameCheck";
 import { scanCOI, type CoiScanResult } from "@/lib/scanCOI";
 import { getSessionFiles, deleteSessionFiles } from "@/app/api/upload/route";
+import { claimSubmission, markSubmissionDone, releaseSubmission } from "@/lib/submitGuard";
 
 export const runtime = "nodejs";
 // The submit flow generates a PDF, scans the COI, validates contacts against
@@ -1304,13 +1305,15 @@ export async function POST(req: NextRequest) {
   // dispatch with the carrier's identity (req.json() is consumed, so the body
   // can't be re-read inside catch).
   let failContext = "an unknown carrier";
+  // Set once this request owns the submission, so the catch-all can release it.
+  let claimedSubmissionId: string | null = null;
   try {
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) return NextResponse.json({ success: false, error: "Resend not configured" }, { status: 500 });
 
     const resend = new Resend(resendKey);
     const body = await req.json();
-    const { fmcsaData, companyData, docsData, wcData, sigData, sessionId, kpiSessionId } = body;
+    const { fmcsaData, companyData, docsData, wcData, sigData, sessionId, kpiSessionId, submissionId } = body;
 
     // ── Legal-name guard (server backstop for the Step 2 client gate) ──
     // Carriers kept submitting their FACTORING company (RTS / OTR / ...) as
@@ -1343,6 +1346,20 @@ export async function POST(req: NextRequest) {
     if (sigCheck.authorizedSigner !== true) {
       return NextResponse.json({ success: false, error: "Signer must certify they are an authorized signer for the carrier." }, { status: 400 });
     }
+
+    // ── Retry guard ──
+    // The client retries when the request dies on the network. If an earlier
+    // attempt for this same submission already got here, don't run it twice.
+    const claim = await claimSubmission(submissionId);
+    if (claim === "done") {
+      console.log("[submit] duplicate of an already-delivered submission — answering success:", failContext);
+      return NextResponse.json({ success: true, duplicate: true, dispatchSent: true });
+    }
+    if (claim === "in_progress") {
+      console.log("[submit] duplicate while the first attempt is still running — telling client to wait:", failContext);
+      return NextResponse.json({ success: false, inProgress: true }, { status: 202 });
+    }
+    claimedSubmissionId = typeof submissionId === "string" ? submissionId : null;
 
     // Capture IP
     const ipAddress =
@@ -1843,6 +1860,11 @@ export async function POST(req: NextRequest) {
     // Summary log — easy to grep in Vercel logs
     console.log("[submit] DONE — dispatchSent:", dispatchSent, "carrierSent:", carrierSent, "safetyNetSent:", safetyNetSent, "docsFailed:", docsFailed, "attachments:", attachments.length);
 
+    // Delivered → remember it so a late retry is answered as success. Nothing
+    // delivered → drop the claim so a fresh attempt isn't mistaken for a duplicate.
+    if (dispatchSent || safetyNetSent) await markSubmissionDone(claimedSubmissionId);
+    else await releaseSubmission(claimedSubmissionId);
+
     return NextResponse.json({
       success: true,
       dispatchSent,
@@ -1858,6 +1880,7 @@ export async function POST(req: NextRequest) {
     const detail = e?.message || String(err);
     console.error("[submit] FATAL error:", detail);
     console.error("[submit] stack:", e?.stack || "no stack");
+    await releaseSubmission(claimedSubmissionId);
 
     // Durable alert: a hard failure here means the carrier saw an error and
     // their submission did NOT go through. Make sure a human finds out — fire a
