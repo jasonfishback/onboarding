@@ -12,9 +12,10 @@ interface Step6Props {
   fmcsaData?: Record<string, unknown> | null;
   submitting?: boolean;
   error?: string;
+  onRetry?: () => void;
 }
 
-export default function Step6({ companyName, companyData, fmcsaData, wcData, sigData, submitting, error }: Step6Props) {
+export default function Step6({ companyName, companyData, fmcsaData, wcData, sigData, submitting, error, onRetry }: Step6Props) {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
 
@@ -51,7 +52,7 @@ export default function Step6({ companyName, companyData, fmcsaData, wcData, sig
             Submitting your application...
           </h2>
           <p style={{ fontSize: 15, color: "#666" }}>
-            Please wait while we send your onboarding packet.
+            Please wait while we send your onboarding packet. Keep this page open.
           </p>
         </>
       ) : error ? (
@@ -61,6 +62,11 @@ export default function Step6({ companyName, companyData, fmcsaData, wcData, sig
             Submission issue
           </h2>
           <p style={{ fontSize: 15, color: "#666", marginBottom: 20 }}>{error}</p>
+          {onRetry && (
+            <div style={{ marginBottom: 20 }}>
+              <Btn onClick={onRetry} style={{ fontSize: 16, padding: "12px 28px" }}>↻ Try Again</Btn>
+            </div>
+          )}
           <p style={{ fontSize: 14, color: "#888" }}>
             Please email <a href="mailto:dispatch@simonexpress.com" style={{ color: RED }}>dispatch@simonexpress.com</a> or call{" "}
             <a href="tel:8012607010" style={{ color: RED }}>801-260-7010</a>.
